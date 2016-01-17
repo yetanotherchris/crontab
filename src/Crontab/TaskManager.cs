@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Security.Principal;
 using System.Text;
 using CronExpressionDescriptor;
 using Microsoft.Win32.TaskScheduler;
@@ -34,10 +35,14 @@ namespace Crontab
 				{
 					bool exists = service.AllTasks.Any(x => x.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
 
-					var triggers = Trigger.FromCronFormat(addOrUpdateOptions.Expression); // doesn't support "*/5" for minutes/hours yet.
-					var action = new ExecAction(addOrUpdateOptions.Command, addOrUpdateOptions.Arguments, addOrUpdateOptions.WorkingDirectory);
+					Trigger[] triggers = Trigger.FromCronFormat(addOrUpdateOptions.Expression); // doesn't support "*/5" for minutes/hours yet.
 
+					string workingDirectory = addOrUpdateOptions.WorkingDirectory ?? Path.GetDirectoryName(addOrUpdateOptions.Command);
+					var action = new ExecAction(addOrUpdateOptions.Command, addOrUpdateOptions.Arguments, workingDirectory);
+					
 					TaskDefinition taskDefinition = service.NewTask();
+					taskDefinition.Principal.RunLevel = TaskRunLevel.Highest;
+					taskDefinition.Principal.LogonType = TaskLogonType.InteractiveTokenOrPassword;
 					taskDefinition.RegistrationInfo.Description = description;
 					taskDefinition.Triggers.AddRange(triggers);
 					taskDefinition.Actions.Add(action);
