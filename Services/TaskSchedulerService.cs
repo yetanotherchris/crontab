@@ -180,7 +180,11 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         {
             try
             {
-                return Trigger.FromCronFormat(schedule);
+                var triggers = Trigger.FromCronFormat(schedule);
+                if (triggers.Length > 0)
+                {
+                    return triggers[0];
+                }
             }
             catch
             {
