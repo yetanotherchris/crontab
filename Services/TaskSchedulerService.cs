@@ -193,13 +193,14 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 
         return parts[0] switch
         {
-            "daily" => new DailyTrigger { DaysInterval = 1 },
-            "hourly" => new DailyTrigger { Repetition = new RepetitionPattern(TimeSpan.FromHours(1), TimeSpan.FromDays(1)) },
-            "weekly" => new WeeklyTrigger { WeeksInterval = 1 },
-            "monthly" => new MonthlyTrigger { MonthsOfYear = MonthsOfTheYear.AllMonths, DaysOfMonth = new[] { 1 } },
-            "boot" => new BootTrigger(),
+            "daily" or "@daily" or "@midnight" => new DailyTrigger { DaysInterval = 1 },
+            "hourly" or "@hourly" => new DailyTrigger { Repetition = new RepetitionPattern(TimeSpan.FromHours(1), TimeSpan.FromDays(1)) },
+            "weekly" or "@weekly" => new WeeklyTrigger { WeeksInterval = 1 },
+            "monthly" or "@monthly" => new MonthlyTrigger { MonthsOfYear = MonthsOfTheYear.AllMonths, DaysOfMonth = new[] { 1 } },
+            "@yearly" or "@annually" => new MonthlyTrigger { MonthsOfYear = MonthsOfTheYear.January, DaysOfMonth = new[] { 1 } },
+            "boot" or "@reboot" => new BootTrigger(),
             "logon" => new LogonTrigger(),
-            _ => throw new ArgumentException($"Invalid schedule format: {schedule}. Use cron format (e.g., '0 9 * * *') or simple format (daily, hourly, weekly, monthly, boot, logon)")
+            _ => throw new ArgumentException($"Invalid schedule format: {schedule}. Use cron format (e.g., '0 9 * * *') or shorthand (@reboot, @hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually)")
         };
     }
 
