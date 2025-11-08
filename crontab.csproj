@@ -13,6 +13,7 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <OptimizationPreference>Speed</OptimizationPreference>
+    <EnableComHosting>true</EnableComHosting>
   </PropertyGroup>
 
   <ItemGroup>
