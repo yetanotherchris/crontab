@@ -42,12 +42,7 @@ public class CrontabCommand
 
             if (optionsSet == 0)
             {
-                AnsiConsole.MarkupLine("[yellow]Usage: crontab [-l | -e | -r][/]");
-                AnsiConsole.MarkupLine("");
-                AnsiConsole.MarkupLine("Options:");
-                AnsiConsole.MarkupLine("  [cyan]-l, --list[/]     List all cron jobs");
-                AnsiConsole.MarkupLine("  [cyan]-e, --edit[/]     Edit crontab file");
-                AnsiConsole.MarkupLine("  [cyan]-r, --remove[/]   Remove all cron jobs");
+                ShowHelp();
                 return;
             }
 
@@ -72,6 +67,45 @@ public class CrontabCommand
         }, listOption, editOption, removeOption);
 
         return crontabCommand;
+    }
+
+    private void ShowHelp()
+    {
+        AnsiConsole.MarkupLine("[bold yellow]Usage: crontab [-l | -e | -r][/]");
+        AnsiConsole.MarkupLine("");
+
+        AnsiConsole.MarkupLine("[bold]Options:[/]");
+        AnsiConsole.MarkupLine("  [cyan]-l, --list[/]     List all cron jobs");
+        AnsiConsole.MarkupLine("  [cyan]-e, --edit[/]     Edit crontab file");
+        AnsiConsole.MarkupLine("  [cyan]-r, --remove[/]   Remove all cron jobs");
+        AnsiConsole.MarkupLine("");
+
+        AnsiConsole.MarkupLine("[bold]Crontab Format:[/]");
+        AnsiConsole.MarkupLine("");
+        Console.WriteLine("  * * * * * command");
+        Console.WriteLine("  │ │ │ │ │");
+        Console.WriteLine("  │ │ │ │ └─ day of week (0–7, 0 and 7 = Sunday)");
+        Console.WriteLine("  │ │ │ └─── month (1–12)");
+        Console.WriteLine("  │ │ └───── day of month (1–31)");
+        Console.WriteLine("  │ └─────── hour (0–23)");
+        Console.WriteLine("  └───────── minute (0–59)");
+        AnsiConsole.MarkupLine("");
+
+        AnsiConsole.MarkupLine("[bold]Examples:[/]");
+        AnsiConsole.MarkupLine("  [dim]# Run backup every day at 3 AM[/]");
+        AnsiConsole.MarkupLine("  [green]0 3 * * *[/] C:\\scripts\\backup.bat");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM[/]");
+        AnsiConsole.MarkupLine("  [green]0 3 * * *[/] rclone sync C:\\data remote:s3-backup --log-file=C:\\logs\\rclone.log");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("  [dim]# Check status every 15 minutes[/]");
+        AnsiConsole.MarkupLine("  [green]*/15 * * * *[/] powershell.exe -File C:\\scripts\\status.ps1");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM[/]");
+        AnsiConsole.MarkupLine("  [green]0 9 * * 1[/] C:\\scripts\\weekly-report.bat");
+        AnsiConsole.MarkupLine("");
+
+        AnsiConsole.MarkupLine("[dim]Run 'crontab -e' to edit your scheduled jobs[/]");
     }
 
     private void ExecuteList()
