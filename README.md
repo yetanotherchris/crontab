@@ -1,17 +1,22 @@
 # TaskScheduler Cron
 
-A .NET 9 command-line tool for managing Windows Task Scheduler with cron-like functionality. This tool provides a familiar cron-style interface for Windows Task Scheduler, making it easy to create, list, view, and delete scheduled tasks.
+A .NET 9 command-line tool that brings Unix `crontab` functionality to Windows Task Scheduler. This tool replicates the familiar `crontab` interface for managing scheduled tasks on Windows.
 
 ## Features
 
-- **List all tasks** - View all scheduled tasks in a formatted table (like `crontab -l`)
-- **View task details** - Get detailed information about a specific task
-- **Create tasks** - Create new scheduled tasks using cron syntax or simple schedules
-- **Delete tasks** - Remove scheduled tasks with confirmation
-- **Cross-platform CLI** - Uses System.CommandLine for modern command-line parsing
-- **Rich terminal output** - Powered by Spectre.Console for beautiful terminal UI
+- **True crontab interface** - Uses `crontab -l`, `crontab -e`, `crontab -r` commands
+- **Cron syntax support** - Standard 5-field cron expressions (`* * * * *`)
+- **File-based editing** - Edit jobs in a text file, just like Unix crontab
+- **Automatic sync** - Changes automatically sync with Windows Task Scheduler
+- **No named tasks** - Just schedule + command, exactly like cron
 
 ## Installation
+
+### Install via Scoop (Windows)
+
+```powershell
+scoop install https://raw.githubusercontent.com/yetanotherchris/taskscheduler-ui/main/crontab.json
+```
 
 ### Build from source
 
@@ -23,136 +28,139 @@ dotnet publish -c Release
 ### Run directly
 
 ```bash
-dotnet run -- [command] [options]
+dotnet run -- crontab [options]
 ```
 
 ## Usage
 
-### List all scheduled tasks
+This tool works exactly like Unix `crontab`:
+
+### List your crontab
 
 ```bash
-taskscheduler-cron list
-# or
-taskscheduler-cron ls
+crontab -l
 ```
 
-This displays a table with all scheduled tasks including their state, enabled status, last run time, and next run time.
+Displays the current crontab file (all scheduled jobs).
 
-### View a specific task
+### Edit your crontab
 
 ```bash
-taskscheduler-cron view "TaskName"
+crontab -e
 ```
 
-Shows detailed information about a task including:
-- Task state and status
-- Description
-- Triggers (schedule information)
-- Actions (what the task executes)
+Opens your crontab file in an editor (notepad on Windows, or $EDITOR if set). After saving and closing the editor, changes are automatically synchronized with Windows Task Scheduler.
 
-### Create a new task
+### Remove your crontab
 
 ```bash
-# Using cron syntax
-taskscheduler-cron create "MyTask" "notepad.exe" -s "0 9 * * *" -d "Open notepad at 9 AM daily"
-
-# Using simple schedule format
-taskscheduler-cron create "BackupTask" "C:\backup.bat" -s "daily" -d "Daily backup"
-
-# With arguments
-taskscheduler-cron create "MyScript" "powershell.exe" -s "hourly" -a "-File C:\script.ps1" -d "Run script hourly"
+crontab -r
 ```
 
-**Schedule formats:**
+Removes your crontab file and all associated scheduled tasks. Requires confirmation.
 
-**Cron format** (5 fields: minute hour day month day-of-week):
+## Crontab File Format
+
+The crontab file uses standard Unix cron format:
+
+```
+# minute hour day month day-of-week command [arguments...]
+0 9 * * * C:\scripts\backup.bat
+*/15 * * * * powershell.exe -File C:\scripts\check.ps1
+0 2 * * 1 C:\scripts\weekly-backup.bat
+30 14 1 * * notepad.exe C:\notes.txt
+```
+
+**Format:** `minute hour day month day-of-week command [arguments...]`
+
+**Fields:**
+- **minute** - 0-59
+- **hour** - 0-23
+- **day** - 1-31
+- **month** - 1-12
+- **day-of-week** - 0-7 (0 or 7 is Sunday)
+
+**Special characters:**
+- `*` - Any value
+- `*/n` - Every n units (e.g., `*/15` in minute field = every 15 minutes)
+- `n-m` - Range (e.g., `1-5` = Monday through Friday)
+- `n,m` - List (e.g., `1,15` = 1st and 15th)
+
+**Examples:**
 - `0 9 * * *` - Every day at 9:00 AM
 - `*/15 * * * *` - Every 15 minutes
 - `0 0 * * 0` - Every Sunday at midnight
 - `30 14 1 * *` - At 2:30 PM on the 1st of every month
-
-**Simple format:**
-- `daily` - Run once per day
-- `hourly` - Run every hour
-- `weekly` - Run once per week
-- `monthly` - Run on the 1st of every month
-- `boot` - Run at system startup
-- `logon` - Run at user logon
-
-### Delete a task
-
-```bash
-# With confirmation prompt
-taskscheduler-cron delete "TaskName"
-
-# Force delete without confirmation
-taskscheduler-cron delete "TaskName" --force
-# or
-taskscheduler-cron rm "TaskName" -f
-```
+- `0 9 * * 1-5` - Weekdays at 9:00 AM
+- `0 */2 * * *` - Every 2 hours
 
 ## Command Reference
 
-| Command | Aliases | Description |
-|---------|---------|-------------|
-| `list` | `ls` | List all scheduled tasks |
-| `view <name>` | - | View detailed information about a task |
-| `create <name> <command>` | - | Create a new scheduled task |
-| `delete <name>` | `rm` | Delete a scheduled task |
-
-### Create Command Options
-
-| Option | Alias | Required | Description |
-|--------|-------|----------|-------------|
-| `--schedule` | `-s` | Yes | Schedule in cron or simple format |
-| `--args` | `-a` | No | Arguments to pass to the command |
-| `--description` | `-d` | No | Description of the task |
-
-### Delete Command Options
-
-| Option | Alias | Required | Description |
-|--------|-------|----------|-------------|
-| `--force` | `-f` | No | Force deletion without confirmation |
+| Command | Description |
+|---------|-------------|
+| `crontab -l` | List all cron jobs (display crontab file) |
+| `crontab -e` | Edit crontab file in text editor |
+| `crontab -r` | Remove all cron jobs and crontab file |
 
 ## Examples
 
-### Create a daily backup task
+### List current cron jobs
 
 ```bash
-taskscheduler-cron create "DailyBackup" "C:\scripts\backup.bat" -s "0 2 * * *" -d "Daily backup at 2 AM"
+crontab -l
 ```
 
-### Create a task that runs every 15 minutes
+Output:
+```
+# Crontab file for Windows Task Scheduler
+# Format: minute hour day month day-of-week command [arguments...]
+
+0 9 * * * C:\scripts\backup.bat
+*/15 * * * * powershell.exe -File C:\scripts\check.ps1
+0 2 * * 1 C:\scripts\weekly-backup.bat
+```
+
+### Edit crontab
 
 ```bash
-taskscheduler-cron create "StatusCheck" "C:\scripts\check-status.ps1" -s "*/15 * * * *" -a "-ExecutionPolicy Bypass" -d "Check system status every 15 minutes"
+crontab -e
 ```
 
-### Create a task that runs at system boot
+This opens notepad (or your configured editor) with the crontab file. Add your jobs:
+
+```
+# Daily backup at 2 AM
+0 2 * * * C:\scripts\backup.bat
+
+# Check status every 15 minutes
+*/15 * * * * powershell.exe -File C:\scripts\check-status.ps1
+
+# Weekly report on Monday at 9 AM
+0 9 * * 1 C:\scripts\weekly-report.bat
+
+# Monthly cleanup on the 1st at midnight
+0 0 1 * * C:\scripts\cleanup.bat
+```
+
+Save and close the file. The tool will automatically sync these jobs with Windows Task Scheduler.
+
+### Remove all cron jobs
 
 ```bash
-taskscheduler-cron create "StartupTask" "C:\scripts\startup.bat" -s "boot" -d "Run at system startup"
+crontab -r
 ```
 
-### List all tasks and view details
+This will prompt for confirmation, then remove your crontab file and all associated tasks.
 
-```bash
-# List all tasks
-taskscheduler-cron list
+## How It Works
 
-# View specific task
-taskscheduler-cron view "DailyBackup"
-```
-
-### Delete a task
-
-```bash
-# With confirmation
-taskscheduler-cron delete "DailyBackup"
-
-# Without confirmation
-taskscheduler-cron delete "DailyBackup" --force
-```
+1. **Crontab file** - Stored at `%USERPROFILE%\.crontab`
+2. **Task names** - Automatically generated from job content (you don't see them)
+3. **Synchronization** - When you edit the crontab:
+   - New jobs are created in Task Scheduler
+   - Modified jobs are updated
+   - Removed jobs are deleted from Task Scheduler
+4. **Prefix** - All tasks are prefixed with `cron_` in Task Scheduler
 
 ## Requirements
 
@@ -173,13 +181,11 @@ taskscheduler-cron delete "DailyBackup" --force
 ```
 taskscheduler-ui/
 ├── Commands/
-│   ├── ListCommand.cs      # List all tasks
-│   ├── ViewCommand.cs      # View task details
-│   ├── CreateCommand.cs    # Create new tasks
-│   └── DeleteCommand.cs    # Delete tasks
+│   └── CrontabCommand.cs       # Main crontab command (-l, -e, -r)
 ├── Services/
-│   └── TaskSchedulerService.cs  # Task Scheduler wrapper
-├── Program.cs              # Entry point with DI setup
+│   ├── CrontabService.cs       # Manages crontab file
+│   └── TaskSchedulerService.cs # Windows Task Scheduler wrapper
+├── Program.cs                  # Entry point with DI setup
 └── TaskSchedulerCron.csproj    # Project file
 ```
 
@@ -187,11 +193,11 @@ taskscheduler-ui/
 
 The application follows these patterns from [tiny-city](https://github.com/yetanotherchris/tiny-city):
 
-- **Command pattern** - Each command is a separate class with a `CreateCommand()` method
+- **Command pattern** - CrontabCommand handles all operations
 - **Dependency injection** - Uses Microsoft.Extensions.DependencyInjection
-- **Service layer** - Business logic in service classes
-- **System.CommandLine** - For parsing commands and options
-- **Spectre.Console** - For rich terminal output
+- **Service layer** - Separate services for crontab file and Task Scheduler
+- **File-based config** - Crontab file at `%USERPROFILE%\.crontab`
+- **Auto-sync** - File changes automatically sync to Task Scheduler
 
 ## License
 

@@ -22,21 +22,9 @@ class Program
         // Setup dependency injection
         var serviceProvider = SetupIoC();
 
-        // Create root command
-        var rootCommand = new RootCommand("A command line tool for managing Windows Task Scheduler with cron-like functionality");
-
-        // Add commands
-        var listCommand = serviceProvider.GetRequiredService<ListCommand>();
-        rootCommand.AddCommand(listCommand.CreateCommand());
-
-        var viewCommand = serviceProvider.GetRequiredService<ViewCommand>();
-        rootCommand.AddCommand(viewCommand.CreateCommand());
-
-        var createCommand = serviceProvider.GetRequiredService<CreateCommand>();
-        rootCommand.AddCommand(createCommand.CreateCommand());
-
-        var deleteCommand = serviceProvider.GetRequiredService<DeleteCommand>();
-        rootCommand.AddCommand(deleteCommand.CreateCommand());
+        // Create crontab command (the main and only command)
+        var crontabCommand = serviceProvider.GetRequiredService<CrontabCommand>();
+        var rootCommand = crontabCommand.CreateCommand();
 
         // Build command line parser
         var parser = new CommandLineBuilder(rootCommand)
@@ -70,12 +58,10 @@ class Program
 
         // Register services
         services.AddSingleton<ITaskSchedulerService, TaskSchedulerService>();
+        services.AddSingleton<ICrontabService, CrontabService>();
 
         // Register command handlers
-        services.AddSingleton<ListCommand>();
-        services.AddSingleton<ViewCommand>();
-        services.AddSingleton<CreateCommand>();
-        services.AddSingleton<DeleteCommand>();
+        services.AddSingleton<CrontabCommand>();
 
         return services.BuildServiceProvider();
     }

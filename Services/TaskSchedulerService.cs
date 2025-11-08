@@ -5,9 +5,12 @@ namespace TaskSchedulerCron.Services;
 public interface ITaskSchedulerService
 {
     IEnumerable<TaskInfo> ListTasks();
+    IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
     void CreateTask(string name, string command, string arguments, string schedule, string? description = null);
     void DeleteTask(string name);
+    void SyncCrontab(IEnumerable<CrontabEntry> entries);
+    void RemoveAllCronTasks();
 }
 
 public class TaskSchedulerService : ITaskSchedulerService, IDisposable
@@ -104,6 +107,70 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
     public void DeleteTask(string name)
     {
         _taskService.RootFolder.DeleteTask(name, false);
+    }
+
+    public IEnumerable<TaskInfo> GetCronTasks()
+    {
+        return ListTasks().Where(t => t.Name.StartsWith("cron_"));
+    }
+
+    public void SyncCrontab(IEnumerable<CrontabEntry> entries)
+    {
+        // Get existing cron tasks
+        var existingTasks = GetCronTasks().ToDictionary(t => t.Name);
+
+        // Get task names from crontab entries
+        var newTaskNames = new HashSet<string>(entries.Select(e => e.TaskName));
+
+        // Delete tasks that are no longer in crontab
+        foreach (var existingTask in existingTasks.Values)
+        {
+            if (!newTaskNames.Contains(existingTask.Name))
+            {
+                try
+                {
+                    DeleteTask(existingTask.Name);
+                }
+                catch
+                {
+                    // Ignore deletion errors
+                }
+            }
+        }
+
+        // Create or update tasks from crontab
+        foreach (var entry in entries)
+        {
+            try
+            {
+                CreateTask(
+                    entry.TaskName,
+                    entry.Command,
+                    entry.Arguments,
+                    entry.Schedule,
+                    $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim());
+            }
+            catch
+            {
+                // Ignore creation errors for individual tasks
+            }
+        }
+    }
+
+    public void RemoveAllCronTasks()
+    {
+        var cronTasks = GetCronTasks().ToList();
+        foreach (var task in cronTasks)
+        {
+            try
+            {
+                DeleteTask(task.Name);
+            }
+            catch
+            {
+                // Ignore deletion errors
+            }
+        }
     }
 
     private Trigger ParseSchedule(string schedule)
