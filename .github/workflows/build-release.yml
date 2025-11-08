@@ -8,23 +8,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            rid: linux-x64
-            artifact: crontab
-          - os: windows-latest
-            rid: win-x64
-            artifact: crontab.exe
-          - os: macos-latest
-            rid: osx-x64
-            artifact: crontab
-          - os: macos-latest
-            rid: osx-arm64
-            artifact: crontab
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -54,13 +38,13 @@ jobs:
         run: dotnet restore crontab.csproj
 
       - name: Publish
-        run: dotnet publish crontab.csproj -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
+        run: dotnet publish crontab.csproj -c Release -r win-x64 -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.rid }}
-          path: bin/Release/net9.0/${{ matrix.rid }}/publish/${{ matrix.artifact }}
+          name: win-x64
+          path: bin/Release/net9.0/win-x64/publish/crontab.exe
 
   release:
     needs: build
@@ -84,38 +68,17 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v3
 
-      - name: Download linux-x64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-x64
-          path: ./artifacts/linux-x64
-
       - name: Download win-x64 artifact
         uses: actions/download-artifact@v4
         with:
           name: win-x64
           path: ./artifacts/win-x64
 
-      - name: Download osx-x64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: osx-x64
-          path: ./artifacts/osx-x64
-
-      - name: Download osx-arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: osx-arm64
-          path: ./artifacts/osx-arm64
-
       - name: Rename artifacts with version
         shell: pwsh
         run: |
           $version = "${{ steps.gitversion.outputs.semVer }}"
-          Move-Item -Path "./artifacts/linux-x64/crontab" -Destination "./artifacts/crontab-v$version-linux-x64"
           Move-Item -Path "./artifacts/win-x64/crontab.exe" -Destination "./artifacts/crontab-v$version-win-x64.exe"
-          Move-Item -Path "./artifacts/osx-x64/crontab" -Destination "./artifacts/crontab-v$version-osx-x64"
-          Move-Item -Path "./artifacts/osx-arm64/crontab" -Destination "./artifacts/crontab-v$version-osx-arm64"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
