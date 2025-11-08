@@ -10,10 +10,9 @@
     <Authors>C.Small</Authors>
     <Description>A command line tool that brings Unix crontab functionality to Windows Task Scheduler</Description>
     <PublishAot>true</PublishAot>
-    <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <OptimizationPreference>Speed</OptimizationPreference>
-    <EnableComHosting>true</EnableComHosting>
+    <EnableComSupport>true</EnableComSupport>
   </PropertyGroup>
 
   <ItemGroup>
