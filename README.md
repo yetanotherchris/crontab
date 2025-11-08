@@ -160,7 +160,7 @@ This will prompt for confirmation, then remove your crontab file and all associa
    - New jobs are created in Task Scheduler
    - Modified jobs are updated
    - Removed jobs are deleted from Task Scheduler
-4. **Prefix** - All tasks are prefixed with `cron_` in Task Scheduler
+4. **Prefix** - All tasks are prefixed with `cron-` in Task Scheduler
 
 ## Requirements
 

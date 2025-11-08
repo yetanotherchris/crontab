@@ -111,7 +111,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 
     public IEnumerable<TaskInfo> GetCronTasks()
     {
-        return ListTasks().Where(t => t.Name.StartsWith("cron_"));
+        return ListTasks().Where(t => t.Name.StartsWith("cron-"));
     }
 
     public void SyncCrontab(IEnumerable<CrontabEntry> entries)

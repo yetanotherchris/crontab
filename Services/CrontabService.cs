@@ -214,7 +214,7 @@ public class CrontabService : ICrontabService
 
         // Use a readable prefix with the hash
         var commandName = Path.GetFileNameWithoutExtension(command);
-        return $"cron_{commandName}_{hashString}".Replace(" ", "_");
+        return $"cron-{commandName}-{hashString}".Replace(" ", "-");
     }
 }
 
