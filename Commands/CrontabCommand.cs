@@ -1,8 +1,8 @@
 using System.CommandLine;
 using Spectre.Console;
-using TaskSchedulerCron.Services;
+using Crontab.Services;
 
-namespace TaskSchedulerCron.Commands;
+namespace Crontab.Commands;
 
 public class CrontabCommand
 {

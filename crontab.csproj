@@ -5,10 +5,10 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>taskscheduler-cron</AssemblyName>
-    <RootNamespace>TaskSchedulerCron</RootNamespace>
+    <AssemblyName>crontab</AssemblyName>
+    <RootNamespace>Crontab</RootNamespace>
     <Authors>C.Small</Authors>
-    <Description>A command line tool for managing Windows Task Scheduler with cron-like functionality</Description>
+    <Description>A command line tool that brings Unix crontab functionality to Windows Task Scheduler</Description>
     <PublishAot>true</PublishAot>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>

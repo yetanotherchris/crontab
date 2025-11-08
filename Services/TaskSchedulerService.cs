@@ -1,6 +1,6 @@
 using Microsoft.Win32.TaskScheduler;
 
-namespace TaskSchedulerCron.Services;
+namespace Crontab.Services;
 
 public interface ITaskSchedulerService
 {

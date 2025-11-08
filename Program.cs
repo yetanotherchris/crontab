@@ -5,10 +5,10 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
-using TaskSchedulerCron.Commands;
-using TaskSchedulerCron.Services;
+using Crontab.Commands;
+using Crontab.Services;
 
-namespace TaskSchedulerCron;
+namespace Crontab;
 
 class Program
 {

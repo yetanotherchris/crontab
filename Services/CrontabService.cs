@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TaskSchedulerCron.Services;
+namespace Crontab.Services;
 
 public interface ICrontabService
 {

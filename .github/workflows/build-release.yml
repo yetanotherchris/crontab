@@ -51,10 +51,10 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore TaskSchedulerCron.csproj
+        run: dotnet restore crontab.csproj
 
       - name: Publish
-        run: dotnet publish TaskSchedulerCron.csproj -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
+        run: dotnet publish crontab.csproj -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
