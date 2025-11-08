@@ -1,0 +1,14 @@
+mode: ContinuousDeployment
+branches:
+  main:
+    increment: None
+    regex: ^master$|^main$
+  feature:
+    increment: Minor
+  release:
+    increment: Patch
+  hotfix:
+    increment: Patch
+ignore:
+  sha: []
+merge-message-formats: {}
