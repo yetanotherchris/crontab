@@ -71,7 +71,8 @@ public class CrontabCommand
 
     private void ShowHelp()
     {
-        AnsiConsole.MarkupLine("[bold yellow]Usage: crontab [-l | -e | -r][/]");
+        string usage = Markup.Escape("Usage: crontab [-l | -e | -r]");
+        AnsiConsole.MarkupLine($"[bold yellow]{usage}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Options:[/]");
@@ -84,11 +85,11 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("");
         Console.WriteLine("  * * * * * command");
         Console.WriteLine("  │ │ │ │ │");
-        Console.WriteLine("  │ │ │ │ └─ day of week (0–7, 0 and 7 = Sunday)");
-        Console.WriteLine("  │ │ │ └─── month (1–12)");
-        Console.WriteLine("  │ │ └───── day of month (1–31)");
-        Console.WriteLine("  │ └─────── hour (0–23)");
-        Console.WriteLine("  └───────── minute (0–59)");
+        Console.WriteLine("  │ │ │ │ └─ day of week (0-7, 0 and 7 = Sunday)");
+        Console.WriteLine("  │ │ │ └─── month (1-12)");
+        Console.WriteLine("  │ │ └───── day of month (1-31)");
+        Console.WriteLine("  │ └─────── hour (0-23)");
+        Console.WriteLine("  └───────── minute (0-59)");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
@@ -124,7 +125,7 @@ public class CrontabCommand
             var lines = content.Split('\n');
             foreach (var line in lines)
             {
-                var trimmed = line.TrimEnd();
+                var trimmed = Markup.Escape(line.TrimEnd());
                 if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#'))
                 {
                     AnsiConsole.MarkupLine($"[dim]{trimmed}[/]");

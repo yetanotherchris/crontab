@@ -9,9 +9,11 @@
     <RootNamespace>Crontab</RootNamespace>
     <Authors>C.Small</Authors>
     <Description>A command line tool that brings Unix crontab functionality to Windows Task Scheduler</Description>
+    <!--
     <PublishAot>true</PublishAot>
     <PublishSingleFile>true</PublishSingleFile>
     <OptimizationPreference>Speed</OptimizationPreference>
+    -->
     <EnableComSupport>true</EnableComSupport>
   </PropertyGroup>
 
