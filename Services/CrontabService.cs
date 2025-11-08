@@ -118,28 +118,22 @@ public class CrontabService : ICrontabService
 
     private string GetEditor()
     {
+        // Check for VISUAL environment variable (preferred)
+        var editor = Environment.GetEnvironmentVariable("VISUAL");
+        if (!string.IsNullOrWhiteSpace(editor))
+        {
+            return editor;
+        }
+
         // Check for EDITOR environment variable
-        var editor = Environment.GetEnvironmentVariable("EDITOR");
+        editor = Environment.GetEnvironmentVariable("EDITOR");
         if (!string.IsNullOrWhiteSpace(editor))
         {
             return editor;
         }
 
-        // Check for VISUAL environment variable
-        editor = Environment.GetEnvironmentVariable("VISUAL");
-        if (!string.IsNullOrWhiteSpace(editor))
-        {
-            return editor;
-        }
-
-        // Default to notepad on Windows
-        if (OperatingSystem.IsWindows())
-        {
-            return "notepad.exe";
-        }
-
-        // Default to vi on Unix-like systems
-        return "vi";
+        // Default to notepad
+        return "notepad.exe";
     }
 
     private CrontabEntry? ParseCrontabLine(string line)

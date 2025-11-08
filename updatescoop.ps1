@@ -24,12 +24,12 @@ $manifest = @{
     version = $Version
     architecture = @{
         "64bit" = @{
-            url = "https://github.com/yetanotherchris/taskscheduler-ui/releases/download/v$Version/crontab-v$Version-win-x64.exe"
+            url = "https://github.com/yetanotherchris/crontab/releases/download/v$Version/crontab-v$Version-win-x64.exe"
             bin = "crontab.exe"
             hash = $hash
         }
     }
-    homepage = "https://github.com/yetanotherchris/taskscheduler-ui"
+    homepage = "https://github.com/yetanotherchris/crontab"
     license = "MIT License"
     description = "A command line tool that brings Unix crontab functionality to Windows Task Scheduler"
 } | ConvertTo-Json -Depth 10

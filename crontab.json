@@ -2,12 +2,12 @@
   "version": "1.0.0",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/yetanotherchris/taskscheduler-ui/releases/download/v1.0.0/crontab-v1.0.0-win-x64.exe",
+      "url": "https://github.com/yetanotherchris/crontab/releases/download/v1.0.0/crontab-v1.0.0-win-x64.exe",
       "bin": "crontab.exe",
       "hash": "placeholder"
     }
   },
-  "homepage": "https://github.com/yetanotherchris/taskscheduler-ui",
+  "homepage": "https://github.com/yetanotherchris/crontab",
   "license": "MIT License",
   "description": "A command line tool that brings Unix crontab functionality to Windows Task Scheduler"
 }
