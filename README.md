@@ -55,7 +55,7 @@ Output:
 crontab -e
 ```
 
-Opens your crontab file in an editor (uses `EDITOR` environment variable, defaults to notepad on Windows). Changes are synchronized with Windows Task Scheduler when you save and close.
+Opens your crontab file in an editor (uses `VISUAL` or `EDITOR` environment variable, defaults to notepad on Windows). Changes are synchronized with Windows Task Scheduler when you save and close.
 
 ### Remove your crontab
 
