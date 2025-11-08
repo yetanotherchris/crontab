@@ -11,15 +11,28 @@ public interface ITaskSchedulerService
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
+    void CreateFolder(string folderPath);
+    void DeleteFolder(string folderPath);
 }
 
 public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 {
     private readonly TaskService _taskService;
+    private const string CrontabFolderPath = "\\Crontab";
 
     public TaskSchedulerService()
     {
         _taskService = new TaskService();
+
+        // Ensure the Crontab folder exists
+        try
+        {
+            CreateFolder(CrontabFolderPath);
+        }
+        catch
+        {
+            // Folder might already exist
+        }
     }
 
     public IEnumerable<TaskInfo> ListTasks()
@@ -94,8 +107,11 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Create action
         taskDefinition.Actions.Add(new ExecAction(command, arguments, null));
 
-        // Register the task
-        _taskService.RootFolder.RegisterTaskDefinition(
+        // Get the Crontab folder
+        var folder = _taskService.GetFolder(CrontabFolderPath);
+
+        // Register the task in the Crontab folder
+        folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.CreateOrUpdate,
@@ -106,16 +122,52 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 
     public void DeleteTask(string name)
     {
-        _taskService.RootFolder.DeleteTask(name, false);
+        try
+        {
+            var folder = _taskService.GetFolder(CrontabFolderPath);
+            folder.DeleteTask(name, false);
+        }
+        catch
+        {
+            // If not found in Crontab folder, try root folder for backwards compatibility
+            _taskService.RootFolder.DeleteTask(name, false);
+        }
     }
 
     public IEnumerable<TaskInfo> GetCronTasks()
     {
-        return ListTasks().Where(t => t.Name.StartsWith("cron-"));
+        try
+        {
+            var folder = _taskService.GetFolder(CrontabFolderPath);
+            var tasks = new List<TaskInfo>();
+
+            foreach (var task in folder.Tasks)
+            {
+                tasks.Add(new TaskInfo
+                {
+                    Name = task.Name,
+                    Path = task.Path,
+                    Enabled = task.Enabled,
+                    State = task.State.ToString(),
+                    LastRunTime = task.LastRunTime,
+                    NextRunTime = task.NextRunTime,
+                    Description = task.Definition.RegistrationInfo.Description
+                });
+            }
+
+            return tasks.OrderBy(t => t.Name);
+        }
+        catch
+        {
+            // Folder doesn't exist, return empty list or fallback to old behavior
+            return ListTasks().Where(t => t.Name.StartsWith("cron-"));
+        }
     }
 
     public void SyncCrontab(IEnumerable<CrontabEntry> entries)
     {
+        var errors = new List<string>();
+
         // Get existing cron tasks
         var existingTasks = GetCronTasks().ToDictionary(t => t.Name);
 
@@ -131,9 +183,9 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
                 {
                     DeleteTask(existingTask.Name);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore deletion errors
+                    errors.Add($"Failed to delete task '{existingTask.Name}': {ex.Message}");
                 }
             }
         }
@@ -150,10 +202,16 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim());
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore creation errors for individual tasks
+                errors.Add($"Failed to create task '{entry.TaskName}': {ex.Message}");
             }
+        }
+
+        // If there were errors, throw an exception with all the error details
+        if (errors.Any())
+        {
+            throw new Exception($"Sync completed with errors:\n{string.Join("\n", errors)}");
         }
     }
 
@@ -206,6 +264,27 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             "logon" => new LogonTrigger(),
             _ => throw new ArgumentException($"Invalid schedule format: {schedule}. Use cron format (e.g., '0 9 * * *') or shorthand (@reboot, @hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually)")
         };
+    }
+
+    public void CreateFolder(string folderPath)
+    {
+        try
+        {
+            _taskService.RootFolder.CreateFolder(folderPath);
+        }
+        catch (Exception ex)
+        {
+            // Folder might already exist - check if it's an "already exists" error
+            if (!ex.Message.Contains("already exists"))
+            {
+                throw;
+            }
+        }
+    }
+
+    public void DeleteFolder(string folderPath)
+    {
+        _taskService.RootFolder.DeleteFolder(folderPath, false);
     }
 
     public void Dispose()
