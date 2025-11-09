@@ -44,13 +44,13 @@ jobs:
         run: dotnet test tests/crontab.Tests.csproj -c Release --no-build --verbosity normal
 
       - name: Publish
-        run: dotnet publish crontab.csproj -c Release -r win-x64 -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+        run: dotnet publish src/Crontab.csproj -c Release -r win-x64 -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: win-x64
-          path: bin/Release/net9.0/win-x64/publish/crontab.exe
+          path: src/bin/Release/net9.0/win-x64/publish/crontab.exe
 
   release:
     needs: build
