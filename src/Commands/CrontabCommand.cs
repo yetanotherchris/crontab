@@ -134,6 +134,50 @@ public class CrontabCommand
                     Console.WriteLine(trimmed);
                 }
             }
+
+            // Display task execution history
+            var tasks = _taskScheduler.GetCronTasks().ToList();
+            if (tasks.Any())
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Task Execution History:[/]");
+                AnsiConsole.WriteLine();
+
+                var table = new Table();
+                table.Border = TableBorder.Rounded;
+                table.AddColumn("Task Name");
+                table.AddColumn("Status");
+                table.AddColumn("Last Run");
+                table.AddColumn("Next Run");
+
+                foreach (var task in tasks)
+                {
+                    var lastRun = task.LastRunTime.Year > 1900
+                        ? task.LastRunTime.ToString("yyyy-MM-dd HH:mm:ss")
+                        : "Never";
+
+                    var nextRun = task.NextRunTime.Year > 1900
+                        ? task.NextRunTime.ToString("yyyy-MM-dd HH:mm:ss")
+                        : "Not scheduled";
+
+                    var statusColor = task.State switch
+                    {
+                        "Running" => "yellow",
+                        "Ready" => "green",
+                        "Disabled" => "dim",
+                        _ => "white"
+                    };
+
+                    table.AddRow(
+                        Markup.Escape(task.Name),
+                        $"[{statusColor}]{Markup.Escape(task.State)}[/]",
+                        lastRun,
+                        nextRun
+                    );
+                }
+
+                AnsiConsole.Write(table);
+            }
         }
         catch (Exception ex)
         {

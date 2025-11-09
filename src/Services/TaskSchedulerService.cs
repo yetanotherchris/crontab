@@ -100,6 +100,9 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
 
+        // Remove the default 3-day execution time limit
+        taskDefinition.Settings.ExecutionTimeLimit = TimeSpan.Zero;
+
         // Parse schedule and create appropriate trigger
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
