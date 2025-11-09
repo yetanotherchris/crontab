@@ -6,7 +6,7 @@
     "64bit": {
       "hash": "7C7AFEC367AA7A3495A2E0D4D90AB74C038ED2F11B3092B1C0B6D36582466175",
       "url": "https://github.com/yetanotherchris/crontab/releases/download/v0.7.1/crontab-v0.7.1-win-x64.exe",
-      "bin": "crontab.exe"
+      "bin": [["crontab-v0.7.1-win-x64.exe", "crontab"]]
     }
   },
   "license": "MIT License"
