@@ -71,8 +71,7 @@ public class CrontabCommand
 
     private void ShowHelp()
     {
-        string usage = Markup.Escape("Usage: crontab [-l | -e | -r]");
-        AnsiConsole.MarkupLine($"[bold yellow]{usage}");
+        AnsiConsole.MarkupLine($"[bold yellow]{Markup.Escape("Usage: crontab [-l | -e | -r]")}[/]");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Options:[/]");
@@ -94,19 +93,19 @@ public class CrontabCommand
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
         AnsiConsole.MarkupLine("  [dim]# Run backup every day at 3 AM[/]");
-        AnsiConsole.MarkupLine("  [green]0 3 * * *[/] C:\\scripts\\backup.bat");
+        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("C:\\scripts\\backup.bat")}");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM[/]");
-        AnsiConsole.MarkupLine("  [green]0 3 * * *[/] rclone sync C:\\data remote:s3-backup --log-file=C:\\logs\\rclone.log");
+        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("rclone sync C:\\data remote:s3-backup --log-file=C:\\logs\\rclone.log")}");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Check status every 15 minutes[/]");
-        AnsiConsole.MarkupLine("  [green]*/15 * * * *[/] powershell.exe -File C:\\scripts\\status.ps1");
+        AnsiConsole.MarkupLine($"  [green]*/15 * * * *[/] {Markup.Escape("powershell.exe -File C:\\scripts\\status.ps1")}");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM[/]");
-        AnsiConsole.MarkupLine("  [green]0 9 * * 1[/] C:\\scripts\\weekly-report.bat");
+        AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
         AnsiConsole.MarkupLine("");
 
-        AnsiConsole.MarkupLine("[dim]Run 'crontab -e' to edit your scheduled jobs[/]");
+        AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");
     }
 
     private void ExecuteList()

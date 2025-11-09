@@ -38,7 +38,7 @@ jobs:
         run: dotnet restore crontab.csproj
 
       - name: Publish
-        run: dotnet publish crontab.csproj -c Release -r win-x64 -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
+        run: dotnet publish crontab.csproj -c Release -r win-x64 -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
