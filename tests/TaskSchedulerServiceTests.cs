@@ -2,6 +2,7 @@ using Xunit;
 using Microsoft.Win32.TaskScheduler;
 using Crontab.Services;
 using System.Reflection;
+using Shouldly;
 
 namespace Crontab.Tests;
 
@@ -28,8 +29,8 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule(schedule);
 
         // Assert
-        Assert.NotNull(trigger);
-        Assert.IsType(expectedTriggerType, trigger);
+        trigger.ShouldNotBeNull();
+        trigger.ShouldBeOfType(expectedTriggerType);
     }
 
     [Fact]
@@ -39,10 +40,10 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule("@hourly");
 
         // Assert
-        Assert.IsType<DailyTrigger>(trigger);
+        trigger.ShouldBeOfType<DailyTrigger>();
         var dailyTrigger = (DailyTrigger)trigger;
-        Assert.NotNull(dailyTrigger.Repetition);
-        Assert.Equal(TimeSpan.FromHours(1), dailyTrigger.Repetition.Interval);
+        dailyTrigger.Repetition.ShouldNotBeNull();
+        dailyTrigger.Repetition.Interval.ShouldBe(TimeSpan.FromHours(1));
     }
 
     [Fact]
@@ -52,9 +53,9 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule("@daily");
 
         // Assert
-        Assert.IsType<DailyTrigger>(trigger);
+        trigger.ShouldBeOfType<DailyTrigger>();
         var dailyTrigger = (DailyTrigger)trigger;
-        Assert.Equal(1, dailyTrigger.DaysInterval);
+        dailyTrigger.DaysInterval.ShouldBe((short)1);
     }
 
     [Fact]
@@ -64,9 +65,9 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule("@weekly");
 
         // Assert
-        Assert.IsType<WeeklyTrigger>(trigger);
+        trigger.ShouldBeOfType<WeeklyTrigger>();
         var weeklyTrigger = (WeeklyTrigger)trigger;
-        Assert.Equal(1, weeklyTrigger.WeeksInterval);
+        weeklyTrigger.WeeksInterval.ShouldBe((short)1);
     }
 
     [Fact]
@@ -76,10 +77,10 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule("@monthly");
 
         // Assert
-        Assert.IsType<MonthlyTrigger>(trigger);
+        trigger.ShouldBeOfType<MonthlyTrigger>();
         var monthlyTrigger = (MonthlyTrigger)trigger;
-        Assert.Equal(MonthsOfTheYear.AllMonths, monthlyTrigger.MonthsOfYear);
-        Assert.Contains(1, monthlyTrigger.DaysOfMonth);
+        monthlyTrigger.MonthsOfYear.ShouldBe(MonthsOfTheYear.AllMonths);
+        monthlyTrigger.DaysOfMonth.ShouldContain(1);
     }
 
     [Fact]
@@ -89,10 +90,10 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule("@yearly");
 
         // Assert
-        Assert.IsType<MonthlyTrigger>(trigger);
+        trigger.ShouldBeOfType<MonthlyTrigger>();
         var monthlyTrigger = (MonthlyTrigger)trigger;
-        Assert.Equal(MonthsOfTheYear.January, monthlyTrigger.MonthsOfYear);
-        Assert.Contains(1, monthlyTrigger.DaysOfMonth);
+        monthlyTrigger.MonthsOfYear.ShouldBe(MonthsOfTheYear.January);
+        monthlyTrigger.DaysOfMonth.ShouldContain(1);
     }
 
     [Fact]
@@ -102,10 +103,10 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule("@annually");
 
         // Assert
-        Assert.IsType<MonthlyTrigger>(trigger);
+        trigger.ShouldBeOfType<MonthlyTrigger>();
         var monthlyTrigger = (MonthlyTrigger)trigger;
-        Assert.Equal(MonthsOfTheYear.January, monthlyTrigger.MonthsOfYear);
-        Assert.Contains(1, monthlyTrigger.DaysOfMonth);
+        monthlyTrigger.MonthsOfYear.ShouldBe(MonthsOfTheYear.January);
+        monthlyTrigger.DaysOfMonth.ShouldContain(1);
     }
 
     [Theory]
@@ -120,7 +121,7 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule(schedule);
 
         // Assert
-        Assert.NotNull(trigger);
+        trigger.ShouldNotBeNull();
         // Standard cron formats should return a trigger from Trigger.FromCronFormat
     }
 
@@ -132,8 +133,8 @@ public class TaskSchedulerServiceTests
     public void ParseSchedule_InvalidSchedule_ThrowsException(string schedule)
     {
         // Arrange & Act & Assert
-        var exception = Assert.Throws<TargetInvocationException>(() => InvokeParseSchedule(schedule));
-        Assert.IsType<ArgumentException>(exception.InnerException);
+        var exception = Should.Throw<TargetInvocationException>(() => InvokeParseSchedule(schedule));
+        exception.InnerException.ShouldBeOfType<ArgumentException>();
     }
 
     [Theory]
@@ -147,8 +148,8 @@ public class TaskSchedulerServiceTests
         var trigger = InvokeParseSchedule(schedule);
 
         // Assert
-        Assert.NotNull(trigger);
-        Assert.IsType(expectedTriggerType, trigger);
+        trigger.ShouldNotBeNull();
+        trigger.ShouldBeOfType(expectedTriggerType);
     }
 
     /// <summary>

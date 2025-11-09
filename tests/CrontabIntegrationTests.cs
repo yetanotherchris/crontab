@@ -1,5 +1,6 @@
 using Xunit;
 using Crontab.Services;
+using Shouldly;
 
 namespace Crontab.Tests;
 
@@ -19,11 +20,11 @@ public class CrontabIntegrationTests
         };
 
         // Assert
-        Assert.Equal("test-task", entry.TaskName);
-        Assert.Equal("0 0 * * *", entry.Schedule);
-        Assert.Equal("backup.sh", entry.Command);
-        Assert.Equal("arg1 arg2", entry.Arguments);
-        Assert.Equal("0 0 * * * backup.sh arg1 arg2", entry.OriginalLine);
+        entry.TaskName.ShouldBe("test-task");
+        entry.Schedule.ShouldBe("0 0 * * *");
+        entry.Command.ShouldBe("backup.sh");
+        entry.Arguments.ShouldBe("arg1 arg2");
+        entry.OriginalLine.ShouldBe("0 0 * * * backup.sh arg1 arg2");
     }
 
     [Fact]
@@ -42,10 +43,10 @@ public class CrontabIntegrationTests
         };
 
         // Assert
-        Assert.Equal("TestTask", taskInfo.Name);
-        Assert.Equal("\\Crontab\\TestTask", taskInfo.Path);
-        Assert.True(taskInfo.Enabled);
-        Assert.Equal("Ready", taskInfo.State);
-        Assert.NotNull(taskInfo.Description);
+        taskInfo.Name.ShouldBe("TestTask");
+        taskInfo.Path.ShouldBe("\\Crontab\\TestTask");
+        taskInfo.Enabled.ShouldBeTrue();
+        taskInfo.State.ShouldBe("Ready");
+        taskInfo.Description.ShouldNotBeNull();
     }
 }
