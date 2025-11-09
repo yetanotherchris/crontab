@@ -1,41 +1,37 @@
-param (
-    [Parameter(Mandatory=$true)]
-    [string]$Version
+param(
+    [Parameter(Mandatory = $true)]
+    [string]
+    $Version
 )
 
-$ErrorActionPreference = "Stop"
+# Look for the renamed Windows executable in the current directory
+$searchPattern = "crontab-v$Version-win-x64.exe"
+$crontabFile = Get-ChildItem -Path $PSScriptRoot -File | Where-Object { $_.Name -eq $searchPattern } | Select-Object -First 1
 
-# Find the published exe
-$exePath = Get-ChildItem -Path $PSScriptRoot -Filter "crontab-v$Version-win-x64.exe" -Recurse | Select-Object -First 1
-
-if (-not $exePath) {
-    Write-Error "Could not find crontab-v$Version-win-x64.exe"
-    exit 1
+if (-not $crontabFile) {
+    throw "Unable to locate $searchPattern in the current directory."
 }
 
-Write-Host "Found exe at: $($exePath.FullName)"
+$filePath = $crontabFile.FullName
+Write-Output "File found: $filePath, getting hash..."
+$hash = (Get-FileHash -Path $filePath -Algorithm SHA256).Hash
+Write-Output "Hash: $hash"
 
-# Calculate SHA256 hash
-$hash = (Get-FileHash -Path $exePath.FullName -Algorithm SHA256).Hash
-Write-Host "SHA256 Hash: $hash"
-
-# Create scoop manifest
 $manifest = @{
     version = $Version
     architecture = @{
-        "64bit" = @{
+        '64bit' = @{
             url = "https://github.com/yetanotherchris/crontab/releases/download/v$Version/crontab-v$Version-win-x64.exe"
-            bin = "crontab.exe"
+            bin = @("crontab.exe")
             hash = $hash
+            extract_dir = ""
+            pre_install = @("Rename-Item `"`$dir\crontab-v$Version-win-x64.exe`" `"crontab.exe`"")
         }
     }
     homepage = "https://github.com/yetanotherchris/crontab"
     license = "MIT License"
     description = "A command line tool that brings Unix crontab functionality to Windows Task Scheduler"
-} | ConvertTo-Json -Depth 10
+}
 
-# Write to file
-$outputPath = Join-Path $PSScriptRoot "crontab.json"
-[System.IO.File]::WriteAllText($outputPath, $manifest, [System.Text.Encoding]::UTF8)
-
-Write-Host "Scoop manifest written to: $outputPath"
+Write-Output "Creating crontab.json for version $Version..."
+$manifest | ConvertTo-Json -Depth 5 | Out-File -FilePath "crontab.json" -Encoding utf8
