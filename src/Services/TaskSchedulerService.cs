@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -19,6 +19,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 {
     private readonly TaskService _taskService;
     private const string CrontabFolderPath = "\\Crontab";
+    private readonly string _logsDirectory;
 
     public TaskSchedulerService()
     {
@@ -33,6 +34,14 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         {
             // Folder might already exist
         }
+
+        // Set up logs directory at %USERPROFILE%\.crontab\logs
+        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var crontabDir = Path.Combine(homeDir, ".crontab");
+        _logsDirectory = Path.Combine(crontabDir, "logs");
+
+        // Ensure logs directory exists
+        Directory.CreateDirectory(_logsDirectory);
     }
 
     public IEnumerable<TaskInfo> ListTasks()
@@ -95,17 +104,29 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
+
+        // Remove the default 3-day execution time limit
+        taskDefinition.Settings.ExecutionTimeLimit = TimeSpan.Zero;
 
         // Parse schedule and create appropriate trigger
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
 
-        // Create action
-        taskDefinition.Actions.Add(new ExecAction(command, arguments, null));
+        // Create action - wrap with logging only if enabled
+        if (enableLogging)
+        {
+            var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+            var (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
+            taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
+        }
+        else
+        {
+            taskDefinition.Actions.Add(new ExecAction(command, arguments, null));
+        }
 
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
@@ -118,6 +139,40 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             null,
             null,
             TaskLogonType.InteractiveToken);
+    }
+
+    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
+    {
+        // Build a PowerShell script that logs the execution
+        // Using PowerShell for better output handling and timestamp formatting
+        var timestamp = "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'";
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"\"{originalCommand}\""
+            : $"\"{originalCommand}\" {originalArguments}";
+
+        var script = $@"
+$timestamp = {timestamp}
+Add-Content -Path '{logFile}' -Value ""[$timestamp] Starting: {fullCommand.Replace("\"", "'")}""
+try {{
+    $output = & {fullCommand} 2>&1
+    $output | ForEach-Object {{ Add-Content -Path '{logFile}' -Value $_.ToString() }}
+    $exitCode = $LASTEXITCODE
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}
+    $timestamp = {timestamp}
+    Add-Content -Path '{logFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
+    exit $exitCode
+}} catch {{
+    $timestamp = {timestamp}
+    Add-Content -Path '{logFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
+    exit 1
+}}
+".Trim();
+
+        // Use PowerShell to execute the script
+        // -NoProfile: Don't load user profile (faster)
+        // -NonInteractive: Run without user interaction
+        // -Command: Execute the script
+        return ("powershell.exe", $"-NoProfile -NonInteractive -Command \"{script}\"");
     }
 
     public void DeleteTask(string name)
@@ -200,7 +255,8 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
                     entry.Command,
                     entry.Arguments,
                     entry.Schedule,
-                    $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim());
+                    $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
+                    entry.EnableLogging);
             }
             catch (Exception ex)
             {

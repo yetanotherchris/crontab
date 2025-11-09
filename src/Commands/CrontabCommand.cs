@@ -91,18 +91,23 @@ public class CrontabCommand
         Console.WriteLine("  └───────── minute (0-59)");
         AnsiConsole.MarkupLine("");
 
+        AnsiConsole.MarkupLine("[bold]Logging:[/]");
+        AnsiConsole.MarkupLine("  Prefix command with [cyan]@log[/] to capture output to log files");
+        AnsiConsole.MarkupLine($"  Logs are stored in: [dim]{Markup.Escape("%USERPROFILE%\\.crontab\\logs")}[/]");
+        AnsiConsole.MarkupLine("");
+
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
         AnsiConsole.MarkupLine("  [dim]# Run backup every day at 3 AM[/]");
         AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("C:\\scripts\\backup.bat")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM[/]");
-        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("rclone sync C:\\data remote:s3-backup --log-file=C:\\logs\\rclone.log")}");
+        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] [cyan]@log[/] {Markup.Escape("rclone sync C:\\data remote:s3-backup")}");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Check status every 15 minutes[/]");
         AnsiConsole.MarkupLine($"  [green]*/15 * * * *[/] {Markup.Escape("powershell.exe -File C:\\scripts\\status.ps1")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM[/]");
-        AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
+        AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");
@@ -133,6 +138,50 @@ public class CrontabCommand
                 {
                     Console.WriteLine(trimmed);
                 }
+            }
+
+            // Display task execution history
+            var tasks = _taskScheduler.GetCronTasks().ToList();
+            if (tasks.Any())
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Task Execution History:[/]");
+                AnsiConsole.WriteLine();
+
+                var table = new Table();
+                table.Border = TableBorder.Rounded;
+                table.AddColumn("Task Name");
+                table.AddColumn("Status");
+                table.AddColumn("Last Run");
+                table.AddColumn("Next Run");
+
+                foreach (var task in tasks)
+                {
+                    var lastRun = task.LastRunTime.Year > 1900
+                        ? task.LastRunTime.ToString("yyyy-MM-dd HH:mm:ss")
+                        : "Never";
+
+                    var nextRun = task.NextRunTime.Year > 1900
+                        ? task.NextRunTime.ToString("yyyy-MM-dd HH:mm:ss")
+                        : "Not scheduled";
+
+                    var statusColor = task.State switch
+                    {
+                        "Running" => "yellow",
+                        "Ready" => "green",
+                        "Disabled" => "dim",
+                        _ => "white"
+                    };
+
+                    table.AddRow(
+                        Markup.Escape(task.Name),
+                        $"[{statusColor}]{Markup.Escape(task.State)}[/]",
+                        lastRun,
+                        nextRun
+                    );
+                }
+
+                AnsiConsole.Write(table);
             }
         }
         catch (Exception ex)
