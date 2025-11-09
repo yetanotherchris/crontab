@@ -35,7 +35,13 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore crontab.csproj
+        run: dotnet restore crontab.sln
+
+      - name: Build
+        run: dotnet build crontab.sln -c Release --no-restore
+
+      - name: Run tests
+        run: dotnet test tests/crontab.Tests.csproj -c Release --no-build --verbosity normal
 
       - name: Publish
         run: dotnet publish crontab.csproj -c Release -r win-x64 -p:Version=${{ steps.gitversion.outputs.semVer }} --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false
