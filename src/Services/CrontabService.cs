@@ -173,6 +173,22 @@ public class CrontabService : ICrontabService
             arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
         }
 
+        // Check if command starts with @log prefix
+        var enableLogging = false;
+        if (command.StartsWith("@log", StringComparison.OrdinalIgnoreCase))
+        {
+            enableLogging = true;
+            command = command.Substring(4).TrimStart();
+
+            // If command is now empty, it means @log was followed by a space and the actual command is in arguments
+            if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+            {
+                var argParts = arguments.Split(new[] { ' ' }, 2);
+                command = argParts[0];
+                arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+            }
+        }
+
         // Generate a unique task name based on the entry
         var taskName = GenerateTaskName(schedule, command, arguments);
 
@@ -182,7 +198,8 @@ public class CrontabService : ICrontabService
             Schedule = schedule,
             Command = command,
             Arguments = arguments,
-            OriginalLine = line
+            OriginalLine = line,
+            EnableLogging = enableLogging
         };
     }
 
@@ -242,4 +259,5 @@ public class CrontabEntry
     public string Command { get; set; } = string.Empty;
     public string Arguments { get; set; } = string.Empty;
     public string OriginalLine { get; set; } = string.Empty;
+    public bool EnableLogging { get; set; } = false;
 }

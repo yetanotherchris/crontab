@@ -91,18 +91,23 @@ public class CrontabCommand
         Console.WriteLine("  └───────── minute (0-59)");
         AnsiConsole.MarkupLine("");
 
+        AnsiConsole.MarkupLine("[bold]Logging:[/]");
+        AnsiConsole.MarkupLine("  Prefix command with [cyan]@log[/] to capture output to log files");
+        AnsiConsole.MarkupLine($"  Logs are stored in: [dim]{Markup.Escape("%USERPROFILE%\\.crontab\\logs")}[/]");
+        AnsiConsole.MarkupLine("");
+
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
         AnsiConsole.MarkupLine("  [dim]# Run backup every day at 3 AM[/]");
         AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("C:\\scripts\\backup.bat")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM[/]");
-        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("rclone sync C:\\data remote:s3-backup --log-file=C:\\logs\\rclone.log")}");
+        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] [cyan]@log[/] {Markup.Escape("rclone sync C:\\data remote:s3-backup")}");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Check status every 15 minutes[/]");
         AnsiConsole.MarkupLine($"  [green]*/15 * * * *[/] {Markup.Escape("powershell.exe -File C:\\scripts\\status.ps1")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM[/]");
-        AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
+        AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");
@@ -141,9 +146,6 @@ public class CrontabCommand
             {
                 AnsiConsole.WriteLine();
                 AnsiConsole.MarkupLine("[bold]Task Execution History:[/]");
-                var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                var logsPath = Path.Combine(homeDir, ".crontab", "logs");
-                AnsiConsole.MarkupLine($"[dim]Logs directory: {Markup.Escape(logsPath)}[/]");
                 AnsiConsole.WriteLine();
 
                 var table = new Table();
@@ -152,7 +154,6 @@ public class CrontabCommand
                 table.AddColumn("Status");
                 table.AddColumn("Last Run");
                 table.AddColumn("Next Run");
-                table.AddColumn("Log File");
 
                 foreach (var task in tasks)
                 {
@@ -172,14 +173,11 @@ public class CrontabCommand
                         _ => "white"
                     };
 
-                    var logFile = $"{task.Name}.log";
-
                     table.AddRow(
                         Markup.Escape(task.Name),
                         $"[{statusColor}]{Markup.Escape(task.State)}[/]",
                         lastRun,
-                        nextRun,
-                        $"[dim]{Markup.Escape(logFile)}[/]"
+                        nextRun
                     );
                 }
 

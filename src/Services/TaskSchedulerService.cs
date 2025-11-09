@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -104,7 +104,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -116,10 +116,17 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
 
-        // Create action with logging wrapper
-        var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-        var (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
-        taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
+        // Create action - wrap with logging only if enabled
+        if (enableLogging)
+        {
+            var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+            var (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
+            taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
+        }
+        else
+        {
+            taskDefinition.Actions.Add(new ExecAction(command, arguments, null));
+        }
 
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
@@ -248,7 +255,8 @@ try {{
                     entry.Command,
                     entry.Arguments,
                     entry.Schedule,
-                    $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim());
+                    $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
+                    entry.EnableLogging);
             }
             catch (Exception ex)
             {
