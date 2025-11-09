@@ -141,14 +141,37 @@ public class CrontabService : ICrontabService
         // Split by whitespace, but preserve quoted strings
         var parts = SplitCrontabLine(line);
 
-        if (parts.Length < 6)
+        if (parts.Length < 2)
         {
             return null; // Invalid format
         }
 
-        var schedule = string.Join(" ", parts.Take(5));
-        var command = parts[5];
-        var arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
+        // Check if this is a special schedule (e.g., @hourly, @daily, etc.)
+        var isSpecialSchedule = parts[0].StartsWith('@');
+
+        string schedule;
+        string command;
+        string arguments;
+
+        if (isSpecialSchedule)
+        {
+            // Special schedule: @hourly command [arguments...]
+            schedule = parts[0];
+            command = parts[1];
+            arguments = parts.Length > 2 ? string.Join(" ", parts.Skip(2)) : string.Empty;
+        }
+        else
+        {
+            // Standard cron format: minute hour day month day-of-week command [arguments...]
+            if (parts.Length < 6)
+            {
+                return null; // Invalid format for standard cron
+            }
+
+            schedule = string.Join(" ", parts.Take(5));
+            command = parts[5];
+            arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
+        }
 
         // Generate a unique task name based on the entry
         var taskName = GenerateTaskName(schedule, command, arguments);
