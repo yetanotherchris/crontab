@@ -141,6 +141,9 @@ public class CrontabCommand
             {
                 AnsiConsole.WriteLine();
                 AnsiConsole.MarkupLine("[bold]Task Execution History:[/]");
+                var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var logsPath = Path.Combine(homeDir, ".crontab", "logs");
+                AnsiConsole.MarkupLine($"[dim]Logs directory: {Markup.Escape(logsPath)}[/]");
                 AnsiConsole.WriteLine();
 
                 var table = new Table();
@@ -149,6 +152,7 @@ public class CrontabCommand
                 table.AddColumn("Status");
                 table.AddColumn("Last Run");
                 table.AddColumn("Next Run");
+                table.AddColumn("Log File");
 
                 foreach (var task in tasks)
                 {
@@ -168,11 +172,14 @@ public class CrontabCommand
                         _ => "white"
                     };
 
+                    var logFile = $"{task.Name}.log";
+
                     table.AddRow(
                         Markup.Escape(task.Name),
                         $"[{statusColor}]{Markup.Escape(task.State)}[/]",
                         lastRun,
-                        nextRun
+                        nextRun,
+                        $"[dim]{Markup.Escape(logFile)}[/]"
                     );
                 }
 
