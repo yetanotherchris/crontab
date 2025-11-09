@@ -6,7 +6,7 @@ param(
 
 # Look for the renamed Windows executable in the current directory
 $searchPattern = "crontab-v$Version-win-x64.exe"
-$crontabFile = Get-ChildItem -Path $PSScriptRoot -File | Where-Object { $_.Name -eq $searchPattern } | Select-Object -First 1
+$crontabFile = Get-ChildItem -Path $PSScriptRoot -Filter "crontab-v$Version-win-x64.exe" -Recurse | Select-Object -First 1
 
 if (-not $crontabFile) {
     throw "Unable to locate $searchPattern in the current directory."
