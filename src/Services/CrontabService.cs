@@ -173,19 +173,43 @@ public class CrontabService : ICrontabService
             arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
         }
 
-        // Check if command starts with @log prefix
+        // Check if command starts with @log and/or @hidden prefixes (can be in any order)
         var enableLogging = false;
-        if (command.StartsWith("@log", StringComparison.OrdinalIgnoreCase))
-        {
-            enableLogging = true;
-            command = command.Substring(4).TrimStart();
+        var enableHidden = false;
 
-            // If command is now empty, it means @log was followed by a space and the actual command is in arguments
-            if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+        // Keep checking for prefixes until we don't find any more
+        var foundPrefix = true;
+        while (foundPrefix)
+        {
+            foundPrefix = false;
+
+            if (command.StartsWith("@log", StringComparison.OrdinalIgnoreCase))
             {
-                var argParts = arguments.Split(new[] { ' ' }, 2);
-                command = argParts[0];
-                arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                enableLogging = true;
+                command = command.Substring(4).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @log was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
+            }
+            else if (command.StartsWith("@hidden", StringComparison.OrdinalIgnoreCase))
+            {
+                enableHidden = true;
+                command = command.Substring(7).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @hidden was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
             }
         }
 
@@ -199,7 +223,8 @@ public class CrontabService : ICrontabService
             Command = command,
             Arguments = arguments,
             OriginalLine = line,
-            EnableLogging = enableLogging
+            EnableLogging = enableLogging,
+            EnableHidden = enableHidden
         };
     }
 
@@ -260,4 +285,5 @@ public class CrontabEntry
     public string Arguments { get; set; } = string.Empty;
     public string OriginalLine { get; set; } = string.Empty;
     public bool EnableLogging { get; set; } = false;
+    public bool EnableHidden { get; set; } = false;
 }
