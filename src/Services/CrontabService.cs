@@ -73,6 +73,16 @@ public class CrontabService : ICrontabService
             lines.Add($"{entry.Schedule} {entry.Command} {entry.Arguments}".Trim());
         }
 
+        // Remove read-only attribute if present
+        if (File.Exists(_crontabPath))
+        {
+            var attributes = File.GetAttributes(_crontabPath);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                File.SetAttributes(_crontabPath, attributes & ~FileAttributes.ReadOnly);
+            }
+        }
+
         File.WriteAllLines(_crontabPath, lines);
     }
 
@@ -80,6 +90,13 @@ public class CrontabService : ICrontabService
     {
         if (File.Exists(_crontabPath))
         {
+            // Remove read-only attribute if present
+            var attributes = File.GetAttributes(_crontabPath);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                File.SetAttributes(_crontabPath, attributes & ~FileAttributes.ReadOnly);
+            }
+
             File.Delete(_crontabPath);
         }
     }
@@ -96,10 +113,44 @@ public class CrontabService : ICrontabService
 
     public void OpenEditor()
     {
+        // Ensure directory exists
+        var directory = Path.GetDirectoryName(_crontabPath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         // Ensure file exists
         if (!File.Exists(_crontabPath))
         {
-            WriteCrontab(Enumerable.Empty<CrontabEntry>());
+            try
+            {
+                WriteCrontab(Enumerable.Empty<CrontabEntry>());
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new UnauthorizedAccessException(
+                    $"Unable to create crontab file at '{_crontabPath}'. " +
+                    $"Please check file permissions and ensure the file is not read-only or locked by another process.", ex);
+            }
+        }
+        else
+        {
+            // Remove read-only attribute if present
+            var attributes = File.GetAttributes(_crontabPath);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                try
+                {
+                    File.SetAttributes(_crontabPath, attributes & ~FileAttributes.ReadOnly);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    throw new UnauthorizedAccessException(
+                        $"The crontab file at '{_crontabPath}' is read-only and cannot be modified. " +
+                        $"Please check file permissions.", ex);
+                }
+            }
         }
 
         // Try to find a suitable editor

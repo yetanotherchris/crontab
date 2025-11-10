@@ -44,11 +44,6 @@ class Program
 
         stopwatch.Stop();
 
-        if (args.Length > 0)
-        {
-            AnsiConsole.MarkupLine($"[dim]Completed in {stopwatch.ElapsedMilliseconds}ms[/]");
-        }
-
         return result;
     }
 
