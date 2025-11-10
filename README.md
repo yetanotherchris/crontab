@@ -9,7 +9,7 @@ it doesn't add scheduled tasks right now. Can it also add folders to the task sc
 - Uses standard `crontab -l`, `crontab -e`, `crontab -r` commands
 - Supports standard 5-field cron expressions (`* * * * *`)
 - File-based editing with automatic sync to Windows Task Scheduler
-- Stores crontab at `%USERPROFILE%\.crontab`
+- Stores crontab at `%USERPROFILE%\.crontab\crontab`
 
 ## Installation
 

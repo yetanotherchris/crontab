@@ -15,13 +15,15 @@ public interface ICrontabService
 
 public class CrontabService : ICrontabService
 {
-    private const string CrontabFileName = ".crontab";
+    private const string CrontabDirName = ".crontab";
+    private const string CrontabFileName = "crontab";
     private readonly string _crontabPath;
 
     public CrontabService()
     {
         var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        _crontabPath = Path.Combine(homeDir, CrontabFileName);
+        var crontabDir = Path.Combine(homeDir, CrontabDirName);
+        _crontabPath = Path.Combine(crontabDir, CrontabFileName);
     }
 
     public string GetCrontabFilePath() => _crontabPath;
