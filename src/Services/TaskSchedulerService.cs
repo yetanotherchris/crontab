@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool enableHidden = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -104,7 +104,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool enableHidden = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -116,11 +116,20 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
 
-        // Create action - wrap with logging only if enabled
-        if (enableLogging)
+        // Create action - wrap with logging and/or hidden window style if enabled
+        if (enableLogging || enableHidden)
         {
-            var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-            var (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
+            string wrappedCommand, wrappedArguments;
+            if (enableLogging)
+            {
+                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile, enableHidden);
+            }
+            else
+            {
+                // Only hidden, no logging
+                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments);
+            }
             taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
         }
         else
@@ -141,7 +150,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             TaskLogonType.InteractiveToken);
     }
 
-    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
+    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile, bool enableHidden = false)
     {
         // Build a PowerShell script that logs the execution
         // Using PowerShell for better output handling and timestamp formatting
@@ -171,8 +180,32 @@ try {{
         // Use PowerShell to execute the script
         // -NoProfile: Don't load user profile (faster)
         // -NonInteractive: Run without user interaction
+        // -WindowStyle Hidden: Hide the PowerShell window (if enabled)
         // -Command: Execute the script
-        return ("powershell.exe", $"-NoProfile -NonInteractive -Command \"{script}\"");
+        var windowStyleArg = enableHidden ? "-WindowStyle Hidden " : "";
+        return ("powershell.exe", $"-NoProfile -NonInteractive {windowStyleArg}-Command \"{script}\"");
+    }
+
+    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
+    {
+        // Build a PowerShell script that runs the command hidden
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"\"{originalCommand}\""
+            : $"\"{originalCommand}\" {originalArguments}";
+
+        var script = $@"
+try {{
+    $output = & {fullCommand} 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}
+    exit $exitCode
+}} catch {{
+    exit 1
+}}
+".Trim();
+
+        // Use PowerShell with hidden window style
+        return ("powershell.exe", $"-NoProfile -NonInteractive -WindowStyle Hidden -Command \"{script}\"");
     }
 
     public void DeleteTask(string name)
@@ -256,7 +289,8 @@ try {{
                     entry.Arguments,
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
-                    entry.EnableLogging);
+                    entry.EnableLogging,
+                    entry.EnableHidden);
             }
             catch (Exception ex)
             {
