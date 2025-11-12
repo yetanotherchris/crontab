@@ -1,19 +1,19 @@
 {
-  "description": "A command line tool that brings Unix crontab functionality to Windows Task Scheduler",
-  "version": "0.9.4",
+  "homepage": "https://github.com/yetanotherchris/crontab",
+  "license": "MIT License",
+  "version": "0.9.6",
   "architecture": {
     "64bit": {
+      "hash": "802B4AFBB6E2B1B456CF975EC8DF670D840289C7C5F68E8CF51EBF5D23478E87",
+      "url": "https://github.com/yetanotherchris/crontab/releases/download/v0.9.6/crontab-v0.9.6-win-x64.exe",
       "pre_install": [
-        "Rename-Item \"$dir\\crontab-v0.9.4-win-x64.exe\" \"crontab.exe\""
+        "Rename-Item \"$dir\\crontab-v0.9.6-win-x64.exe\" \"crontab.exe\""
       ],
       "extract_dir": "",
-      "hash": "98228FC0BA7C4CE24676136587791AF5C51FB8401509F3E71D4A47AEC1FED2FC",
       "bin": [
         "crontab.exe"
-      ],
-      "url": "https://github.com/yetanotherchris/crontab/releases/download/v0.9.4/crontab-v0.9.4-win-x64.exe"
+      ]
     }
   },
-  "homepage": "https://github.com/yetanotherchris/crontab",
-  "license": "MIT License"
+  "description": "A command line tool that brings Unix crontab functionality to Windows Task Scheduler"
 }
