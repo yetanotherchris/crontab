@@ -233,14 +233,14 @@ try {{{commandExecution}
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
     {
-        // Simplified approach: Use Start-Process -WindowStyle Hidden -FilePath directly
+        // Simplified approach: Write script to temp file to avoid quoting issues
         var commandLower = originalCommand.ToLowerInvariant();
         var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
         var isPowerShellExe = commandLower.EndsWith("powershell.exe") || commandLower.EndsWith("pwsh.exe");
 
         if (isPowerShellScript || isPowerShellExe)
         {
-            // For .ps1 files or PowerShell executables, use powershell.exe -WindowStyle Hidden
+            // For .ps1 files or PowerShell executables, use powershell.exe -WindowStyle Hidden directly
             var args = isPowerShellScript
                 ? $"-WindowStyle Hidden -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}".Trim()
                 : $"-WindowStyle Hidden {originalArguments}".Trim();
@@ -248,11 +248,27 @@ try {{{commandExecution}
         }
         else
         {
-            // For other executables, use Start-Process -WindowStyle Hidden -FilePath
-            var startProcessArgs = string.IsNullOrWhiteSpace(originalArguments)
-                ? $"-WindowStyle Hidden -FilePath \"{originalCommand}\" -Wait"
-                : $"-WindowStyle Hidden -FilePath \"{originalCommand}\" -ArgumentList '{originalArguments}' -Wait";
-            return ("powershell.exe", $"-Command \"Start-Process {startProcessArgs}\"");
+            // For other executables, write a script file to use Start-Process reliably
+            var escapedCommand = originalCommand.Replace("'", "''");
+            var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
+
+            string script;
+            if (string.IsNullOrWhiteSpace(escapedArguments))
+            {
+                script = $"Start-Process -FilePath '{escapedCommand}' -WindowStyle Hidden -Wait";
+            }
+            else
+            {
+                script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
+            }
+
+            // Write script to a temp file in the logs directory
+            var scriptFileName = $"hidden_{Path.GetFileNameWithoutExtension(originalCommand)}_{Guid.NewGuid():N}.ps1";
+            var scriptPath = Path.Combine(_logsDirectory, scriptFileName);
+            File.WriteAllText(scriptPath, script);
+
+            // Execute the script file with hidden window
+            return ("powershell.exe", $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
         }
     }
 
