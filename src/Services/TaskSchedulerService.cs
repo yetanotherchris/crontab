@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false, bool usePwsh = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -20,7 +20,6 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
     private readonly TaskService _taskService;
     private const string CrontabFolderPath = "\\Crontab";
     private readonly string _logsDirectory;
-    private readonly string _wrapperScriptsDirectory;
 
     public TaskSchedulerService()
     {
@@ -40,11 +39,9 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var crontabDir = Path.Combine(homeDir, ".crontab");
         _logsDirectory = Path.Combine(crontabDir, "logs");
-        _wrapperScriptsDirectory = Path.Combine(crontabDir, "wrapper-scripts");
 
-        // Ensure directories exist
+        // Ensure directory exists
         Directory.CreateDirectory(_logsDirectory);
-        Directory.CreateDirectory(_wrapperScriptsDirectory);
     }
 
     public IEnumerable<TaskInfo> ListTasks()
@@ -107,7 +104,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false, bool usePwsh = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -134,7 +131,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             if (enableLogging)
             {
                 var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile, usePwsh);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
             }
             else
             {
@@ -148,11 +145,11 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             if (enableLogging)
             {
                 var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLoggingAndHidden(command, arguments, logFile, name, usePwsh);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLoggingAndHidden(command, arguments, logFile, name);
             }
             else
             {
-                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments, name, usePwsh);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments, name);
             }
         }
 
@@ -175,53 +172,10 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             logonType);
     }
 
-    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile, bool usePwsh)
+    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
     {
-        // Simple logging approach for @system mode: Write script to temp file and execute it
-        var escapedLogFile = logFile.Replace("'", "''");
-        var escapedCommand = originalCommand.Replace("'", "''");
-        var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
-        var displayCommand = string.IsNullOrWhiteSpace(escapedArguments)
-            ? escapedCommand
-            : $"{escapedCommand} {escapedArguments}";
-
-        // Execute command and capture output
-        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"& '{originalCommand}'"
-            : $"& '{originalCommand}' {originalArguments}";
-
-        var script = $@"
-$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
-try {{
-    $output = {fullCommand} 2>&1
-    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
-    $exitCode = $LASTEXITCODE
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
-    exit $exitCode
-}} catch {{
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
-    exit 1
-}}
-".Trim();
-
-        // Write script to a temp file in the wrapper-scripts directory
-        var scriptFileName = $"{Path.GetFileNameWithoutExtension(logFile)}_wrapper.ps1";
-        var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
-        File.WriteAllText(scriptPath, script);
-
-        // Execute the script file (no WindowStyle Hidden for @system, runs non-interactively)
-        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
-        return (powershellExe, $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
-    }
-
-    private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName, bool usePwsh)
-    {
-        // Use crontab.exe --command to run commands with logging and hidden window
-        // This completely eliminates PowerShell and prevents any window flash
+        // For @system mode with logging: Use crontab.exe to handle logging
+        // This provides consistent logging behavior across @user and @system modes
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
         // Combine command and arguments into a single string
@@ -235,18 +189,33 @@ try {{
 
         var args = $"--command base64:{base64Command} --log-file \"{logFile}\"";
 
-        if (usePwsh)
-        {
-            args += " --use-pwsh";
-        }
+        return (crontabExe, args);
+    }
+
+    private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName)
+    {
+        // Use crontab.exe --command to run commands with logging and hidden window
+        // This prevents any window from appearing
+        var crontabExe = Environment.ProcessPath ?? "crontab.exe";
+
+        // Combine command and arguments into a single string
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
+
+        // Base64 encode the command to avoid any quoting/escaping issues
+        var bytes = System.Text.Encoding.UTF8.GetBytes(fullCommand);
+        var base64Command = Convert.ToBase64String(bytes);
+
+        var args = $"--command base64:{base64Command} --log-file \"{logFile}\"";
 
         return (crontabExe, args);
     }
 
-    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName, bool usePwsh)
+    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName)
     {
         // Use crontab.exe --command to run commands with hidden window (no logging)
-        // This completely eliminates PowerShell and prevents any window flash
+        // This prevents any window from appearing
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
         // Combine command and arguments into a single string
@@ -259,11 +228,6 @@ try {{
         var base64Command = Convert.ToBase64String(bytes);
 
         var args = $"--command base64:{base64Command}";
-
-        if (usePwsh)
-        {
-            args += " --use-pwsh";
-        }
 
         return (crontabExe, args);
     }
@@ -350,8 +314,7 @@ try {{
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
                     entry.EnableLogging,
-                    entry.RunAsSystem,
-                    entry.UsePwsh);
+                    entry.RunAsSystem);
             }
             catch (Exception ex)
             {
