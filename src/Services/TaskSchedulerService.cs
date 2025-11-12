@@ -220,6 +220,7 @@ try {{
     private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName, bool usePwsh)
     {
         // Logging + window hiding for @user mode
+        // Use ProcessStartInfo with CreateNoWindow to prevent any window flash
         var escapedLogFile = logFile.Replace("'", "''");
         var escapedCommand = originalCommand.Replace("'", "''");
         var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
@@ -227,18 +228,68 @@ try {{
             ? escapedCommand
             : $"{escapedCommand} {escapedArguments}";
 
-        // Execute command and capture output
-        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"& '{originalCommand}'"
-            : $"& '{originalCommand}' {originalArguments}";
+        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
+        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
 
+        // Create inner script that runs the command with ProcessStartInfo for truly hidden execution
+        string innerScript;
+        if (isPowerShellScript)
+        {
+            // For PowerShell scripts, execute via powershell with CreateNoWindow
+            var psEscaped = originalCommand.Replace("'", "''").Replace("\"", "`\"");
+            var argsEscaped = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''").Replace("\"", "`\"");
+            innerScript = $@"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = '{powershellExe}'
+    $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File ""{psEscaped}"" {argsEscaped}'
+    $psi.CreateNoWindow = $true
+    $psi.UseShellExecute = $false
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $output = $process.StandardOutput.ReadToEnd()
+    $errorOutput = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    if ($output) {{ $output }}
+    if ($errorOutput) {{ $errorOutput }}
+    $exitCode = $process.ExitCode
+".Trim();
+        }
+        else
+        {
+            // For other executables
+            var cmdEscaped = originalCommand.Replace("'", "''").Replace("\"", "`\"");
+            var argsEscaped = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''").Replace("\"", "`\"");
+            var argsPart = string.IsNullOrWhiteSpace(argsEscaped)
+                ? ""
+                : $@"
+    $psi.Arguments = '{argsEscaped}'";
+
+            innerScript = $@"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = '{cmdEscaped}'{argsPart}
+    $psi.CreateNoWindow = $true
+    $psi.UseShellExecute = $false
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $output = $process.StandardOutput.ReadToEnd()
+    $errorOutput = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    if ($output) {{ $output }}
+    if ($errorOutput) {{ $errorOutput }}
+    $exitCode = $process.ExitCode
+".Trim();
+        }
+
+        // Wrap the command execution with logging
         var script = $@"
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
 try {{
-    $output = {fullCommand} 2>&1
-    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
-    $exitCode = $LASTEXITCODE
+{innerScript}
     if ($null -eq $exitCode) {{ $exitCode = 0 }}
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
@@ -256,48 +307,79 @@ try {{
         File.WriteAllText(scriptPath, script);
 
         // Execute with hidden window for @user mode
-        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
         return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName, bool usePwsh)
     {
         // Window hiding only for @user mode (no logging)
+        // Use ProcessStartInfo with CreateNoWindow to prevent any window flash
         var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
         var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
 
+        string commandToRun, argumentsToRun;
+
         if (isPowerShellScript)
         {
-            // For .ps1 files, use powershell.exe -WindowStyle Hidden directly
-            var args = string.IsNullOrWhiteSpace(originalArguments)
-                ? $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\""
-                : $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}";
-            return (powershellExe, args);
+            // For .ps1 files, execute via powershell
+            commandToRun = originalCommand;
+            argumentsToRun = originalArguments ?? "";
         }
         else
         {
-            // For other executables, wrap with Start-Process in a script file
-            var escapedCommand = originalCommand.Replace("'", "''");
-            var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
-
-            string script;
-            if (string.IsNullOrWhiteSpace(escapedArguments))
-            {
-                script = $"Start-Process -FilePath '{escapedCommand}' -WindowStyle Hidden -Wait";
-            }
-            else
-            {
-                script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
-            }
-
-            // Write script to a temp file in the wrapper-scripts directory
-            var scriptFileName = $"{taskName}_wrapper.ps1";
-            var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
-            File.WriteAllText(scriptPath, script);
-
-            // Execute with hidden window
-            return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+            // For other executables
+            commandToRun = originalCommand;
+            argumentsToRun = originalArguments ?? "";
         }
+
+        // Escape quotes for PowerShell string interpolation
+        var escapedCommand = commandToRun.Replace("'", "''").Replace("\"", "`\"");
+        var escapedArguments = argumentsToRun.Replace("'", "''").Replace("\"", "`\"");
+
+        // Use ProcessStartInfo with CreateNoWindow = $true to truly hide the window
+        string script;
+        if (isPowerShellScript)
+        {
+            // For PowerShell scripts, run them directly with powershell
+            script = $@"
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = '{powershellExe}'
+$psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File ""{escapedCommand}"" {escapedArguments}'
+$psi.CreateNoWindow = $true
+$psi.UseShellExecute = $false
+$psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+$process = [System.Diagnostics.Process]::Start($psi)
+$process.WaitForExit()
+exit $process.ExitCode
+".Trim();
+        }
+        else
+        {
+            // For other executables
+            var argsPart = string.IsNullOrWhiteSpace(escapedArguments)
+                ? ""
+                : $@"
+$psi.Arguments = '{escapedArguments}'";
+
+            script = $@"
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = '{escapedCommand}'{argsPart}
+$psi.CreateNoWindow = $true
+$psi.UseShellExecute = $false
+$psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+$process = [System.Diagnostics.Process]::Start($psi)
+$process.WaitForExit()
+exit $process.ExitCode
+".Trim();
+        }
+
+        // Write script to a temp file in the wrapper-scripts directory
+        var scriptFileName = $"{taskName}_wrapper.ps1";
+        var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
+        File.WriteAllText(scriptPath, script);
+
+        // Execute with CreateNoWindow to prevent any window appearing
+        return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
     public void DeleteTask(string name)
