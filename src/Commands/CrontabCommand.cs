@@ -34,7 +34,7 @@ public class CrontabCommand
             description: "Remove all cron jobs");
 
         var executeOption = new Option<string?>(
-            aliases: new[] { "--execute", "-x" },
+            aliases: new[] { "--command", "-c" },
             description: "Execute a command with hidden window (internal use)");
 
         var logFileOption = new Option<string?>(

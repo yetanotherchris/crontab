@@ -219,16 +219,16 @@ try {{
 
     private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName, bool usePwsh)
     {
-        // Use crontab.exe --execute to run commands with logging and hidden window
+        // Use crontab.exe --command to run commands with logging and hidden window
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Combine command and arguments into a single string for --execute
+        // Combine command and arguments into a single string for --command
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
             ? $"\"{originalCommand}\""
             : $"\"{originalCommand}\" {originalArguments}";
 
-        var args = $"--execute {fullCommand} --log-file \"{logFile}\"";
+        var args = $"--command {fullCommand} --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
@@ -240,16 +240,16 @@ try {{
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName, bool usePwsh)
     {
-        // Use crontab.exe --execute to run commands with hidden window (no logging)
+        // Use crontab.exe --command to run commands with hidden window (no logging)
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Combine command and arguments into a single string for --execute
+        // Combine command and arguments into a single string for --command
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
             ? $"\"{originalCommand}\""
             : $"\"{originalCommand}\" {originalArguments}";
 
-        var args = $"--execute {fullCommand}";
+        var args = $"--command {fullCommand}";
 
         if (usePwsh)
         {

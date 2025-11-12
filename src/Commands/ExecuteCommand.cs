@@ -8,7 +8,7 @@ public class ExecuteCommand
     public Option<string?> CreateExecuteOption()
     {
         return new Option<string?>(
-            aliases: new[] { "--execute", "-x" },
+            aliases: new[] { "--command", "-c" },
             description: "Execute a command with hidden window (internal use by Task Scheduler)");
     }
 
