@@ -98,7 +98,8 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("            Windows are hidden automatically");
         AnsiConsole.MarkupLine("  [cyan]@system[/]  Run whether logged in or not (requires password)");
         AnsiConsole.MarkupLine("            More like Linux cron, runs as background service");
-        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @system command[/]");
+        AnsiConsole.MarkupLine("  [cyan]@pwsh[/]    Use PowerShell Core (pwsh.exe) instead of Windows PowerShell");
+        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @pwsh @system command[/]");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
@@ -116,6 +117,9 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Run system task whether logged in or not (requires password)[/]");
         AnsiConsole.MarkupLine($"  [green]0 2 * * *[/] [cyan]@log @system[/] {Markup.Escape("C:\\scripts\\maintenance.ps1")}");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("  [dim]# Use PowerShell Core with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]*/30 * * * *[/] [cyan]@log @pwsh[/] {Markup.Escape("C:\\scripts\\pwsh-script.ps1")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");

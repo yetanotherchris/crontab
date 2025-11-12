@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false, bool usePwsh = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -107,7 +107,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false, bool usePwsh = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -133,7 +133,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             if (enableLogging)
             {
                 var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile, usePwsh);
             }
             else
             {
@@ -147,11 +147,11 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             if (enableLogging)
             {
                 var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLoggingAndHidden(command, arguments, logFile, name);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLoggingAndHidden(command, arguments, logFile, name, usePwsh);
             }
             else
             {
-                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments, name);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments, name, usePwsh);
             }
         }
 
@@ -174,7 +174,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             logonType);
     }
 
-    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
+    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile, bool usePwsh)
     {
         // Simple logging approach for @system mode: Write script to temp file and execute it
         var escapedLogFile = logFile.Replace("'", "''");
@@ -213,10 +213,11 @@ try {{
         File.WriteAllText(scriptPath, script);
 
         // Execute the script file (no WindowStyle Hidden for @system, runs non-interactively)
-        return ("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
+        return (powershellExe, $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
-    private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName)
+    private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName, bool usePwsh)
     {
         // Logging + window hiding for @user mode
         var escapedLogFile = logFile.Replace("'", "''");
@@ -255,12 +256,14 @@ try {{
         File.WriteAllText(scriptPath, script);
 
         // Execute with hidden window for @user mode
-        return ("powershell.exe", $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
+        return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
-    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName)
+    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName, bool usePwsh)
     {
         // Window hiding only for @user mode (no logging)
+        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
         var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
 
         if (isPowerShellScript)
@@ -269,7 +272,7 @@ try {{
             var args = string.IsNullOrWhiteSpace(originalArguments)
                 ? $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\""
                 : $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}";
-            return ("powershell.exe", args);
+            return (powershellExe, args);
         }
         else
         {
@@ -293,7 +296,7 @@ try {{
             File.WriteAllText(scriptPath, script);
 
             // Execute with hidden window
-            return ("powershell.exe", $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+            return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
         }
     }
 
@@ -379,7 +382,8 @@ try {{
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
                     entry.EnableLogging,
-                    entry.RunAsSystem);
+                    entry.RunAsSystem,
+                    entry.UsePwsh);
             }
             catch (Exception ex)
             {
