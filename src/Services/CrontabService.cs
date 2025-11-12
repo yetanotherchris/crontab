@@ -226,9 +226,11 @@ public class CrontabService : ICrontabService
             arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
         }
 
-        // Check if command starts with @log and/or @hidden prefixes (can be in any order)
+        // Check if command starts with @log, @user, @system, or @pwsh prefixes (can be in any order)
         var enableLogging = false;
-        var enableHidden = false;
+        var runAsSystem = false;  // @system = run whether logged in or not (needs password)
+                                   // default/@user = run only when logged in (no password, uses window hiding)
+        var usePwsh = false;       // @pwsh = use PowerShell Core (pwsh.exe) instead of Windows PowerShell
 
         // Keep checking for prefixes until we don't find any more
         var foundPrefix = true;
@@ -250,13 +252,41 @@ public class CrontabService : ICrontabService
                     arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
                 }
             }
-            else if (command.StartsWith("@hidden", StringComparison.OrdinalIgnoreCase))
+            else if (command.StartsWith("@system", StringComparison.OrdinalIgnoreCase))
             {
-                enableHidden = true;
+                runAsSystem = true;
                 command = command.Substring(7).TrimStart();
                 foundPrefix = true;
 
-                // If command is now empty, it means @hidden was followed by a space and the actual command is in arguments
+                // If command is now empty, it means @system was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
+            }
+            else if (command.StartsWith("@user", StringComparison.OrdinalIgnoreCase))
+            {
+                // @user is the default, just remove the prefix
+                command = command.Substring(5).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @user was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
+            }
+            else if (command.StartsWith("@pwsh", StringComparison.OrdinalIgnoreCase))
+            {
+                usePwsh = true;
+                command = command.Substring(5).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @pwsh was followed by a space and the actual command is in arguments
                 if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
                 {
                     var argParts = arguments.Split(new[] { ' ' }, 2);
@@ -277,7 +307,8 @@ public class CrontabService : ICrontabService
             Arguments = arguments,
             OriginalLine = line,
             EnableLogging = enableLogging,
-            EnableHidden = enableHidden
+            RunAsSystem = runAsSystem,
+            UsePwsh = usePwsh
         };
     }
 
@@ -338,5 +369,6 @@ public class CrontabEntry
     public string Arguments { get; set; } = string.Empty;
     public string OriginalLine { get; set; } = string.Empty;
     public bool EnableLogging { get; set; } = false;
-    public bool EnableHidden { get; set; } = false;
+    public bool RunAsSystem { get; set; } = false;  // @system directive - runs whether logged in or not
+    public bool UsePwsh { get; set; } = false;  // @pwsh directive - use PowerShell Core instead of Windows PowerShell
 }

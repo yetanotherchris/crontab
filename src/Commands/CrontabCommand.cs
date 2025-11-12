@@ -94,8 +94,12 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("[bold]Keywords:[/]");
         AnsiConsole.MarkupLine("  [cyan]@log[/]     Capture command output to log files");
         AnsiConsole.MarkupLine($"            Logs stored in: [dim]{Markup.Escape("%USERPROFILE%\\.crontab\\logs")}[/]");
-        AnsiConsole.MarkupLine("  [cyan]@hidden[/]  Run command in a hidden PowerShell window");
-        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @hidden command[/]");
+        AnsiConsole.MarkupLine("  [cyan]@user[/]    Run only when logged in (default, no password needed)");
+        AnsiConsole.MarkupLine("            Windows are hidden automatically");
+        AnsiConsole.MarkupLine("  [cyan]@system[/]  Run whether logged in or not (requires password)");
+        AnsiConsole.MarkupLine("            More like Linux cron, runs as background service");
+        AnsiConsole.MarkupLine("  [cyan]@pwsh[/]    Use PowerShell Core (pwsh.exe) instead of Windows PowerShell");
+        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @pwsh @system command[/]");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
@@ -111,8 +115,11 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM with logging[/]");
         AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Run background task hidden every hour with logging[/]");
-        AnsiConsole.MarkupLine($"  [green]0 * * * *[/] [cyan]@log @hidden[/] {Markup.Escape("python C:\\scripts\\monitor.py")}");
+        AnsiConsole.MarkupLine("  [dim]# Run system task whether logged in or not (requires password)[/]");
+        AnsiConsole.MarkupLine($"  [green]0 2 * * *[/] [cyan]@log @system[/] {Markup.Escape("C:\\scripts\\maintenance.ps1")}");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("  [dim]# Use PowerShell Core with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]*/30 * * * *[/] [cyan]@log @pwsh[/] {Markup.Escape("C:\\scripts\\pwsh-script.ps1")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");
