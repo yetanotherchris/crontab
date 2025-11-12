@@ -155,9 +155,6 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Build a PowerShell script that logs the execution
         // Using PowerShell for better output handling and timestamp formatting
         var timestamp = "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'";
-        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"& '{originalCommand}'"
-            : $"& '{originalCommand}' {originalArguments}";
 
         // Escape single quotes in paths for PowerShell
         var escapedLogFile = logFile.Replace("'", "''");
@@ -167,14 +164,55 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             ? escapedCommand
             : $"{escapedCommand} {escapedArguments}";
 
-        var script = $@"
-$timestamp = {timestamp}
-Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
-try {{
+        // Build the command execution based on whether we need to hide the window
+        string commandExecution;
+        if (enableHidden)
+        {
+            // For hidden execution, use a nested PowerShell call with -WindowStyle Hidden
+            // This ensures that .ps1 scripts and other executables run in a hidden window
+            var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+
+            if (isPowerShellScript)
+            {
+                // For .ps1 files, use Start-Process with PowerShell for more reliable window hiding
+                // Pass the full command line as a single string to -ArgumentList for proper parsing
+                var psCommandLine = string.IsNullOrWhiteSpace(escapedArguments)
+                    ? $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`""
+                    : $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`" {escapedArguments}";
+                commandExecution = $@"
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psCommandLine}' -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $exitCode = $process.ExitCode
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}";
+            }
+            else
+            {
+                // For other executables, use Start-Process with -WindowStyle Hidden and capture exit code
+                var startProcessArgs = string.IsNullOrWhiteSpace(escapedArguments)
+                    ? $"-FilePath '{escapedCommand}'"
+                    : $"-FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}'";
+                commandExecution = $@"
+    $process = Start-Process {startProcessArgs} -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $exitCode = $process.ExitCode
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}";
+            }
+        }
+        else
+        {
+            // Use & operator for normal execution
+            var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+                ? $"& '{originalCommand}'"
+                : $"& '{originalCommand}' {originalArguments}";
+            commandExecution = $@"
     $output = {fullCommand} 2>&1
     $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
     $exitCode = $LASTEXITCODE
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}";
+        }
+
+        var script = $@"
+$timestamp = {timestamp}
+Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
+try {{{commandExecution}
     $timestamp = {timestamp}
     Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
     exit $exitCode
@@ -192,7 +230,7 @@ try {{
         // Use PowerShell to execute the encoded script
         // -NoProfile: Don't load user profile (faster)
         // -NonInteractive: Run without user interaction
-        // -WindowStyle Hidden: Hide the PowerShell window (if enabled)
+        // -WindowStyle Hidden: Hide the outer PowerShell window (if enabled)
         // -EncodedCommand: Execute the Base64-encoded script
         var windowStyleArg = enableHidden ? "-WindowStyle Hidden " : "";
         return ("powershell.exe", $"-NoProfile -NonInteractive {windowStyleArg}-EncodedCommand {encodedScript}");
@@ -201,16 +239,41 @@ try {{
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
     {
         // Build a PowerShell script that runs the command hidden
-        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"& '{originalCommand}'"
-            : $"& '{originalCommand}' {originalArguments}";
+        // Use nested PowerShell for .ps1 files or Start-Process for other executables
+        var escapedCommand = originalCommand.Replace("'", "''");
+        var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
+
+        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+
+        string commandExecution;
+        if (isPowerShellScript)
+        {
+            // For .ps1 files, use Start-Process with PowerShell for more reliable window hiding
+            // Pass the full command line as a single string to -ArgumentList for proper parsing
+            var psCommandLine = string.IsNullOrWhiteSpace(escapedArguments)
+                ? $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`""
+                : $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`" {escapedArguments}";
+            commandExecution = $@"
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psCommandLine}' -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $exitCode = $process.ExitCode
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}
+    exit $exitCode";
+        }
+        else
+        {
+            // For other executables, use Start-Process with -WindowStyle Hidden
+            var startProcessArgs = string.IsNullOrWhiteSpace(escapedArguments)
+                ? $"-FilePath '{escapedCommand}'"
+                : $"-FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}'";
+            commandExecution = $@"
+    $process = Start-Process {startProcessArgs} -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $exitCode = $process.ExitCode
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}
+    exit $exitCode";
+        }
 
         var script = $@"
-try {{
-    $output = {fullCommand} 2>&1
-    $exitCode = $LASTEXITCODE
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}
-    exit $exitCode
+try {{{commandExecution}
 }} catch {{
     exit 1
 }}
