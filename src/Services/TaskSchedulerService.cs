@@ -224,11 +224,12 @@ try {{
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
         // Combine command and arguments into a single string for --command
+        // The entire command+args must be quoted as a single value for the --command option
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"\"{originalCommand}\""
-            : $"\"{originalCommand}\" {originalArguments}";
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command {fullCommand} --log-file \"{logFile}\"";
+        var args = $"--command \"{fullCommand}\" --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
@@ -245,11 +246,12 @@ try {{
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
         // Combine command and arguments into a single string for --command
+        // The entire command+args must be quoted as a single value for the --command option
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"\"{originalCommand}\""
-            : $"\"{originalCommand}\" {originalArguments}";
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command {fullCommand}";
+        var args = $"--command \"{fullCommand}\"";
 
         if (usePwsh)
         {
