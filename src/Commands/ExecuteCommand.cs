@@ -1,60 +1,57 @@
 using System.CommandLine;
 using System.Diagnostics;
-using Spectre.Console;
 
 namespace Crontab.Commands;
 
 public class ExecuteCommand
 {
-    public Command CreateCommand()
+    public Option<string?> CreateExecuteOption()
     {
-        var execCommand = new Command("exec", "Execute a command with hidden window (used internally by Task Scheduler)");
-
-        var commandOption = new Option<string>(
-            aliases: new[] { "--command", "-c" },
-            description: "Command to execute")
-        { IsRequired = true };
-
-        var argumentsOption = new Option<string?>(
-            aliases: new[] { "--arguments", "-a" },
-            description: "Arguments for the command");
-
-        var logFileOption = new Option<string?>(
-            aliases: new[] { "--log-file", "-l" },
-            description: "Log file path (enables logging)");
-
-        var usePwshOption = new Option<bool>(
-            aliases: new[] { "--pwsh" },
-            description: "Use PowerShell Core (pwsh.exe) instead of Windows PowerShell");
-
-        execCommand.AddOption(commandOption);
-        execCommand.AddOption(argumentsOption);
-        execCommand.AddOption(logFileOption);
-        execCommand.AddOption(usePwshOption);
-
-        execCommand.SetHandler((command, arguments, logFile, usePwsh) =>
-        {
-            ExecuteTask(command, arguments, logFile, usePwsh);
-        }, commandOption, argumentsOption, logFileOption, usePwshOption);
-
-        return execCommand;
+        return new Option<string?>(
+            aliases: new[] { "--execute", "-x" },
+            description: "Execute a command with hidden window (internal use by Task Scheduler)");
     }
 
-    private void ExecuteTask(string command, string? arguments, string? logFile, bool usePwsh)
+    public Option<string?> CreateLogFileOption()
+    {
+        return new Option<string?>(
+            aliases: new[] { "--log-file" },
+            description: "Log file path for command execution");
+    }
+
+    public Option<bool> CreateUsePwshOption()
+    {
+        return new Option<bool>(
+            aliases: new[] { "--use-pwsh" },
+            description: "Use PowerShell Core (pwsh.exe)");
+    }
+
+    public void ExecuteTask(string command, string? logFile, bool usePwsh)
     {
         try
         {
+            // Split command into executable and arguments
+            var parts = SplitCommandLine(command);
+            if (parts.Length == 0)
+            {
+                Environment.Exit(1);
+                return;
+            }
+
+            var executable = parts[0];
+            var arguments = parts.Length > 1 ? string.Join(" ", parts.Skip(1)) : null;
+
             var exitCode = 0;
 
             if (!string.IsNullOrWhiteSpace(logFile))
             {
                 // Execute with logging
-                exitCode = ExecuteWithLogging(command, arguments, logFile, usePwsh);
+                exitCode = ExecuteWithLogging(executable, arguments, logFile, usePwsh);
             }
             else
             {
                 // Execute without logging
-                exitCode = ExecuteHidden(command, arguments, usePwsh);
+                exitCode = ExecuteHidden(executable, arguments, usePwsh);
             }
 
             Environment.Exit(exitCode);
@@ -77,6 +74,42 @@ public class ExecuteCommand
             // Exit with error code
             Environment.Exit(1);
         }
+    }
+
+    private string[] SplitCommandLine(string commandLine)
+    {
+        var parts = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (int i = 0; i < commandLine.Length; i++)
+        {
+            var c = commandLine[i];
+
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == ' ' && !inQuotes)
+            {
+                if (current.Length > 0)
+                {
+                    parts.Add(current.ToString());
+                    current.Clear();
+                }
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        if (current.Length > 0)
+        {
+            parts.Add(current.ToString());
+        }
+
+        return parts.ToArray();
     }
 
     private int ExecuteWithLogging(string command, string? arguments, string logFile, bool usePwsh)

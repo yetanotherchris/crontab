@@ -22,16 +22,9 @@ class Program
         // Setup dependency injection
         var serviceProvider = SetupIoC();
 
-        // Create root command
-        var rootCommand = new RootCommand("Windows cron implementation using Task Scheduler");
-
-        // Add crontab command (main command for user interaction)
+        // Create crontab command (the main command with execute option integrated)
         var crontabCommand = serviceProvider.GetRequiredService<CrontabCommand>();
-        rootCommand.AddCommand(crontabCommand.CreateCommand());
-
-        // Add exec command (internal command used by Task Scheduler)
-        var executeCommand = serviceProvider.GetRequiredService<ExecuteCommand>();
-        rootCommand.AddCommand(executeCommand.CreateCommand());
+        var rootCommand = crontabCommand.CreateCommand();
 
         // Build command line parser
         var parser = new CommandLineBuilder(rootCommand)

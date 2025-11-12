@@ -219,20 +219,20 @@ try {{
 
     private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName, bool usePwsh)
     {
-        // Use crontab.exe exec command to execute with logging and hidden window
+        // Use crontab.exe --execute to run commands with logging and hidden window
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        var args = $"exec --command \"{originalCommand}\" --log-file \"{logFile}\"";
+        // Combine command and arguments into a single string for --execute
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"\"{originalCommand}\""
+            : $"\"{originalCommand}\" {originalArguments}";
 
-        if (!string.IsNullOrWhiteSpace(originalArguments))
-        {
-            args += $" --arguments \"{originalArguments.Replace("\"", "\\\"")}\"";
-        }
+        var args = $"--execute {fullCommand} --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
-            args += " --pwsh";
+            args += " --use-pwsh";
         }
 
         return (crontabExe, args);
@@ -240,20 +240,20 @@ try {{
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName, bool usePwsh)
     {
-        // Use crontab.exe exec command to execute with hidden window (no logging)
+        // Use crontab.exe --execute to run commands with hidden window (no logging)
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        var args = $"exec --command \"{originalCommand}\"";
+        // Combine command and arguments into a single string for --execute
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"\"{originalCommand}\""
+            : $"\"{originalCommand}\" {originalArguments}";
 
-        if (!string.IsNullOrWhiteSpace(originalArguments))
-        {
-            args += $" --arguments \"{originalArguments.Replace("\"", "\\\"")}\"";
-        }
+        var args = $"--execute {fullCommand}";
 
         if (usePwsh)
         {
-            args += " --pwsh";
+            args += " --use-pwsh";
         }
 
         return (crontabExe, args);
