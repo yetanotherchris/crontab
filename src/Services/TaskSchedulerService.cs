@@ -122,7 +122,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             string wrappedCommand, wrappedArguments;
             if (enableLogging)
             {
-                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+                var logFile = Path.Combine(_logsDirectory, $"{name}-01.log");
                 (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile, enableHidden);
             }
             else
