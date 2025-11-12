@@ -94,8 +94,6 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("[bold]Keywords:[/]");
         AnsiConsole.MarkupLine("  [cyan]@log[/]     Capture command output to log files");
         AnsiConsole.MarkupLine($"            Logs stored in: [dim]{Markup.Escape("%USERPROFILE%\\.crontab\\logs")}[/]");
-        AnsiConsole.MarkupLine("  [cyan]@hidden[/]  Run command in a hidden PowerShell window");
-        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @hidden command[/]");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
@@ -110,9 +108,6 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM with logging[/]");
         AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
-        AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Run background task hidden every hour with logging[/]");
-        AnsiConsole.MarkupLine($"  [green]0 * * * *[/] [cyan]@log @hidden[/] {Markup.Escape("python C:\\scripts\\monitor.py")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");

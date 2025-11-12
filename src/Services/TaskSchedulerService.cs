@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool enableHidden = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -107,32 +107,26 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool enableHidden = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
 
-        // Remove the default 3-day execution time limit
-        taskDefinition.Settings.ExecutionTimeLimit = TimeSpan.Zero;
+        // Configure task settings to replicate Linux cron behavior
+        taskDefinition.Settings.ExecutionTimeLimit = TimeSpan.Zero;  // Remove the default 3-day execution time limit
+        taskDefinition.Settings.StartWhenAvailable = false;  // Don't run missed tasks
+        taskDefinition.Settings.DisallowStartIfOnBatteries = false;  // Run on battery power
+        taskDefinition.Settings.StopIfGoingOnBatteries = false;  // Don't stop if switching to battery
 
         // Parse schedule and create appropriate trigger
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
 
-        // Create action - wrap with logging and/or hidden window style if enabled
-        if (enableLogging || enableHidden)
+        // Create action - wrap with logging if enabled, otherwise execute directly
+        if (enableLogging)
         {
-            string wrappedCommand, wrappedArguments;
-            if (enableLogging)
-            {
-                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile, enableHidden);
-            }
-            else
-            {
-                // Only hidden, no logging
-                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(name, command, arguments);
-            }
+            var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+            var (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
             taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
         }
         else
@@ -144,20 +138,20 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var folder = _taskService.GetFolder(CrontabFolderPath);
 
         // Register the task in the Crontab folder
+        // Use S4U (Service-for-User) logon to run non-interactively whether user is logged in or not
+        // This replicates Linux cron behavior: no visible windows, runs as daemon
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.CreateOrUpdate,
             null,
             null,
-            TaskLogonType.InteractiveToken);
+            TaskLogonType.S4U);
     }
 
-    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile, bool enableHidden = false)
+    private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
     {
-        // Simplified logging approach: Write script to temp file and execute it
-        // This avoids complex Base64 encoding and escaping issues
-
+        // Simple logging approach: Write script to temp file and execute it
         var escapedLogFile = logFile.Replace("'", "''");
         var escapedCommand = originalCommand.Replace("'", "''");
         var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
@@ -165,55 +159,19 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             ? escapedCommand
             : $"{escapedCommand} {escapedArguments}";
 
-        var commandLower = originalCommand.ToLowerInvariant();
-        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
-        var isPowerShellExe = commandLower.EndsWith("powershell.exe") || commandLower.EndsWith("pwsh.exe");
-
-        // Build the command execution
-        string commandExecution;
-        if (enableHidden)
-        {
-            // For hidden execution with logging - use simplified Start-Process
-            if (isPowerShellScript || isPowerShellExe)
-            {
-                var psArgs = isPowerShellScript
-                    ? (string.IsNullOrWhiteSpace(escapedArguments)
-                        ? $"-WindowStyle Hidden -ExecutionPolicy Bypass -File '{escapedCommand}'"
-                        : $"-WindowStyle Hidden -ExecutionPolicy Bypass -File '{escapedCommand}' {escapedArguments}")
-                    : $"-WindowStyle Hidden {escapedArguments}";
-                commandExecution = $@"
-    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psArgs}' -WindowStyle Hidden -PassThru -Wait
-    $exitCode = $process.ExitCode
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}";
-            }
-            else
-            {
-                var startProcessArgs = string.IsNullOrWhiteSpace(escapedArguments)
-                    ? $"-WindowStyle Hidden -FilePath '{escapedCommand}' -Wait"
-                    : $"-WindowStyle Hidden -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -Wait";
-                commandExecution = $@"
-    $process = Start-Process {startProcessArgs} -PassThru
-    $exitCode = $process.ExitCode
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}";
-            }
-        }
-        else
-        {
-            // For normal execution, capture output
-            var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-                ? $"& '{originalCommand}'"
-                : $"& '{originalCommand}' {originalArguments}";
-            commandExecution = $@"
-    $output = {fullCommand} 2>&1
-    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
-    $exitCode = $LASTEXITCODE
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}";
-        }
+        // Execute command and capture output
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"& '{originalCommand}'"
+            : $"& '{originalCommand}' {originalArguments}";
 
         var script = $@"
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
-try {{{commandExecution}
+try {{
+    $output = {fullCommand} 2>&1
+    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
+    $exitCode = $LASTEXITCODE
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
     exit $exitCode
@@ -229,50 +187,8 @@ try {{{commandExecution}
         var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
         File.WriteAllText(scriptPath, script);
 
-        // Execute the script file
-        var windowStyleArg = enableHidden ? "-WindowStyle Hidden " : "";
-        return ("powershell.exe", $"-NoProfile {windowStyleArg}-ExecutionPolicy Bypass -File \"{scriptPath}\"");
-    }
-
-    private (string command, string arguments) WrapCommandWithHidden(string taskName, string originalCommand, string originalArguments)
-    {
-        // Simplified approach: Write script to temp file to avoid quoting issues
-        var commandLower = originalCommand.ToLowerInvariant();
-        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
-        var isPowerShellExe = commandLower.EndsWith("powershell.exe") || commandLower.EndsWith("pwsh.exe");
-
-        if (isPowerShellScript || isPowerShellExe)
-        {
-            // For .ps1 files or PowerShell executables, use powershell.exe -WindowStyle Hidden directly
-            var args = isPowerShellScript
-                ? $"-WindowStyle Hidden -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}".Trim()
-                : $"-WindowStyle Hidden {originalArguments}".Trim();
-            return ("powershell.exe", args);
-        }
-        else
-        {
-            // For other executables, write a script file to use Start-Process reliably
-            var escapedCommand = originalCommand.Replace("'", "''");
-            var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
-
-            string script;
-            if (string.IsNullOrWhiteSpace(escapedArguments))
-            {
-                script = $"Start-Process -FilePath '{escapedCommand}' -WindowStyle Hidden -Wait";
-            }
-            else
-            {
-                script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
-            }
-
-            // Write script to a temp file in the wrapper-scripts directory with consistent naming
-            var scriptFileName = $"{taskName}_wrapper.ps1";
-            var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
-            File.WriteAllText(scriptPath, script);
-
-            // Execute the script file with hidden window
-            return ("powershell.exe", $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
-        }
+        // Execute the script file (no need for -WindowStyle Hidden, S4U runs non-interactively)
+        return ("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
     public void DeleteTask(string name)
@@ -356,8 +272,7 @@ try {{{commandExecution}
                     entry.Arguments,
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
-                    entry.EnableLogging,
-                    entry.EnableHidden);
+                    entry.EnableLogging);
             }
             catch (Exception ex)
             {
