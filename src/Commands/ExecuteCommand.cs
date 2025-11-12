@@ -30,6 +30,14 @@ public class ExecuteCommand
     {
         try
         {
+            // Check if command is base64 encoded (starts with "base64:")
+            if (command.StartsWith("base64:", StringComparison.OrdinalIgnoreCase))
+            {
+                var base64String = command.Substring(7);
+                var bytes = Convert.FromBase64String(base64String);
+                command = System.Text.Encoding.UTF8.GetString(bytes);
+            }
+
             // Split command into executable and arguments
             var parts = SplitCommandLine(command);
             if (parts.Length == 0)

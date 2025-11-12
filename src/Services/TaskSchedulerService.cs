@@ -223,12 +223,16 @@ try {{
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Combine command and arguments into a single string for --command
+        // Combine command and arguments into a single string
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"\"{originalCommand}\""
-            : $"\"{originalCommand}\" {originalArguments}";
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command {fullCommand} --log-file \"{logFile}\"";
+        // Base64 encode the command to avoid any quoting/escaping issues
+        var bytes = System.Text.Encoding.UTF8.GetBytes(fullCommand);
+        var base64Command = Convert.ToBase64String(bytes);
+
+        var args = $"--command base64:{base64Command} --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
@@ -244,12 +248,16 @@ try {{
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Combine command and arguments into a single string for --command
+        // Combine command and arguments into a single string
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"\"{originalCommand}\""
-            : $"\"{originalCommand}\" {originalArguments}";
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command {fullCommand}";
+        // Base64 encode the command to avoid any quoting/escaping issues
+        var bytes = System.Text.Encoding.UTF8.GetBytes(fullCommand);
+        var base64Command = Convert.ToBase64String(bytes);
+
+        var args = $"--command base64:{base64Command}";
 
         if (usePwsh)
         {
