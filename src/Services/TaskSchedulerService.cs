@@ -174,11 +174,14 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 
             if (isPowerShellScript)
             {
-                // For .ps1 files, call through PowerShell with -WindowStyle Hidden
-                var scriptArgs = string.IsNullOrWhiteSpace(escapedArguments) ? "" : $" {escapedArguments}";
+                // For .ps1 files, use Start-Process with PowerShell for more reliable window hiding
+                // Pass the full command line as a single string to -ArgumentList for proper parsing
+                var psCommandLine = string.IsNullOrWhiteSpace(escapedArguments)
+                    ? $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`""
+                    : $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`" {escapedArguments}";
                 commandExecution = $@"
-    $output = & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -File '{escapedCommand}'{scriptArgs} 2>&1
-    $exitCode = $LASTEXITCODE
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psCommandLine}' -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $exitCode = $process.ExitCode
     if ($null -eq $exitCode) {{ $exitCode = 0 }}";
             }
             else
@@ -245,11 +248,14 @@ try {{{commandExecution}
         string commandExecution;
         if (isPowerShellScript)
         {
-            // For .ps1 files, call through PowerShell with -WindowStyle Hidden
-            var scriptArgs = string.IsNullOrWhiteSpace(escapedArguments) ? "" : $" {escapedArguments}";
+            // For .ps1 files, use Start-Process with PowerShell for more reliable window hiding
+            // Pass the full command line as a single string to -ArgumentList for proper parsing
+            var psCommandLine = string.IsNullOrWhiteSpace(escapedArguments)
+                ? $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`""
+                : $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`" {escapedArguments}";
             commandExecution = $@"
-    $output = & powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -File '{escapedCommand}'{scriptArgs} 2>&1
-    $exitCode = $LASTEXITCODE
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psCommandLine}' -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $exitCode = $process.ExitCode
     if ($null -eq $exitCode) {{ $exitCode = 0 }}
     exit $exitCode";
         }
