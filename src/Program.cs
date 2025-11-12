@@ -22,7 +22,7 @@ class Program
         // Setup dependency injection
         var serviceProvider = SetupIoC();
 
-        // Create crontab command (the main and only command)
+        // Create crontab command (the main command with execute option integrated)
         var crontabCommand = serviceProvider.GetRequiredService<CrontabCommand>();
         var rootCommand = crontabCommand.CreateCommand();
 
@@ -57,6 +57,7 @@ class Program
 
         // Register command handlers
         services.AddSingleton<CrontabCommand>();
+        services.AddSingleton<ExecuteCommand>();
 
         return services.BuildServiceProvider();
     }

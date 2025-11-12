@@ -8,11 +8,13 @@ public class CrontabCommand
 {
     private readonly ITaskSchedulerService _taskScheduler;
     private readonly ICrontabService _crontabService;
+    private readonly ExecuteCommand _executeCommand;
 
-    public CrontabCommand(ITaskSchedulerService taskScheduler, ICrontabService crontabService)
+    public CrontabCommand(ITaskSchedulerService taskScheduler, ICrontabService crontabService, ExecuteCommand executeCommand)
     {
         _taskScheduler = taskScheduler;
         _crontabService = crontabService;
+        _executeCommand = executeCommand;
     }
 
     public Command CreateCommand()
@@ -31,12 +33,34 @@ public class CrontabCommand
             aliases: new[] { "--remove", "-r" },
             description: "Remove all cron jobs");
 
+        var executeOption = new Option<string?>(
+            aliases: new[] { "--command", "-c" },
+            description: "Execute a command with hidden window (internal use)");
+
+        var logFileOption = new Option<string?>(
+            aliases: new[] { "--log-file" },
+            description: "Log file path for command execution");
+
+        var usePwshOption = new Option<bool>(
+            aliases: new[] { "--use-pwsh" },
+            description: "Use PowerShell Core (pwsh.exe)");
+
         crontabCommand.AddOption(listOption);
         crontabCommand.AddOption(editOption);
         crontabCommand.AddOption(removeOption);
+        crontabCommand.AddOption(executeOption);
+        crontabCommand.AddOption(logFileOption);
+        crontabCommand.AddOption(usePwshOption);
 
-        crontabCommand.SetHandler((list, edit, remove) =>
+        crontabCommand.SetHandler((list, edit, remove, execute, logFile, usePwsh) =>
         {
+            // Handle execute option first (internal use by Task Scheduler)
+            if (!string.IsNullOrWhiteSpace(execute))
+            {
+                _executeCommand.ExecuteTask(execute, logFile, usePwsh);
+                return;
+            }
+
             // Count how many options are set
             var optionsSet = new[] { list, edit, remove }.Count(x => x);
 
@@ -64,7 +88,7 @@ public class CrontabCommand
             {
                 ExecuteRemove();
             }
-        }, listOption, editOption, removeOption);
+        }, listOption, editOption, removeOption, executeOption, logFileOption, usePwshOption);
 
         return crontabCommand;
     }

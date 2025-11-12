@@ -219,85 +219,44 @@ try {{
 
     private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName, bool usePwsh)
     {
-        // Logging + window hiding for @user mode
-        var escapedLogFile = logFile.Replace("'", "''");
-        var escapedCommand = originalCommand.Replace("'", "''");
-        var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
-        var displayCommand = string.IsNullOrWhiteSpace(escapedArguments)
-            ? escapedCommand
-            : $"{escapedCommand} {escapedArguments}";
+        // Use crontab.exe --command to run commands with logging and hidden window
+        // This completely eliminates PowerShell and prevents any window flash
+        var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Execute command and capture output
+        // Combine command and arguments into a single string for --command
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"& '{originalCommand}'"
-            : $"& '{originalCommand}' {originalArguments}";
+            ? $"\"{originalCommand}\""
+            : $"\"{originalCommand}\" {originalArguments}";
 
-        var script = $@"
-$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
-try {{
-    $output = {fullCommand} 2>&1
-    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
-    $exitCode = $LASTEXITCODE
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
-    exit $exitCode
-}} catch {{
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
-    exit 1
-}}
-".Trim();
+        var args = $"--command {fullCommand} --log-file \"{logFile}\"";
 
-        // Write script to a temp file in the wrapper-scripts directory
-        var scriptFileName = $"{taskName}_wrapper.ps1";
-        var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
-        File.WriteAllText(scriptPath, script);
+        if (usePwsh)
+        {
+            args += " --use-pwsh";
+        }
 
-        // Execute with hidden window for @user mode
-        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
-        return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+        return (crontabExe, args);
     }
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName, bool usePwsh)
     {
-        // Window hiding only for @user mode (no logging)
-        var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
-        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+        // Use crontab.exe --command to run commands with hidden window (no logging)
+        // This completely eliminates PowerShell and prevents any window flash
+        var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        if (isPowerShellScript)
+        // Combine command and arguments into a single string for --command
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"\"{originalCommand}\""
+            : $"\"{originalCommand}\" {originalArguments}";
+
+        var args = $"--command {fullCommand}";
+
+        if (usePwsh)
         {
-            // For .ps1 files, use powershell.exe -WindowStyle Hidden directly
-            var args = string.IsNullOrWhiteSpace(originalArguments)
-                ? $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\""
-                : $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}";
-            return (powershellExe, args);
+            args += " --use-pwsh";
         }
-        else
-        {
-            // For other executables, wrap with Start-Process in a script file
-            var escapedCommand = originalCommand.Replace("'", "''");
-            var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
 
-            string script;
-            if (string.IsNullOrWhiteSpace(escapedArguments))
-            {
-                script = $"Start-Process -FilePath '{escapedCommand}' -WindowStyle Hidden -Wait";
-            }
-            else
-            {
-                script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
-            }
-
-            // Write script to a temp file in the wrapper-scripts directory
-            var scriptFileName = $"{taskName}_wrapper.ps1";
-            var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
-            File.WriteAllText(scriptPath, script);
-
-            // Execute with hidden window
-            return (powershellExe, $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
-        }
+        return (crontabExe, args);
     }
 
     public void DeleteTask(string name)
