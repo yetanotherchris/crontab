@@ -20,6 +20,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
     private readonly TaskService _taskService;
     private const string CrontabFolderPath = "\\Crontab";
     private readonly string _logsDirectory;
+    private readonly string _wrapperScriptsDirectory;
 
     public TaskSchedulerService()
     {
@@ -39,9 +40,11 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var crontabDir = Path.Combine(homeDir, ".crontab");
         _logsDirectory = Path.Combine(crontabDir, "logs");
+        _wrapperScriptsDirectory = Path.Combine(crontabDir, "wrapper-scripts");
 
-        // Ensure logs directory exists
+        // Ensure directories exist
         Directory.CreateDirectory(_logsDirectory);
+        Directory.CreateDirectory(_wrapperScriptsDirectory);
     }
 
     public IEnumerable<TaskInfo> ListTasks()
@@ -221,9 +224,9 @@ try {{{commandExecution}
 }}
 ".Trim();
 
-        // Write script to a temp file in the logs directory
+        // Write script to a temp file in the wrapper-scripts directory
         var scriptFileName = $"{Path.GetFileNameWithoutExtension(logFile)}_wrapper.ps1";
-        var scriptPath = Path.Combine(_logsDirectory, scriptFileName);
+        var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
         File.WriteAllText(scriptPath, script);
 
         // Execute the script file
@@ -262,9 +265,9 @@ try {{{commandExecution}
                 script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
             }
 
-            // Write script to a temp file in the logs directory
+            // Write script to a temp file in the wrapper-scripts directory
             var scriptFileName = $"hidden_{Path.GetFileNameWithoutExtension(originalCommand)}_{Guid.NewGuid():N}.ps1";
-            var scriptPath = Path.Combine(_logsDirectory, scriptFileName);
+            var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
             File.WriteAllText(scriptPath, script);
 
             // Execute the script file with hidden window
