@@ -1,10 +1,19 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Crontab.Commands;
 
 public class ExecuteCommand
 {
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_HIDE = 0;
+
     public Option<string?> CreateExecuteOption()
     {
         return new Option<string?>(
@@ -19,15 +28,16 @@ public class ExecuteCommand
             description: "Log file path for command execution");
     }
 
-    public Option<bool> CreateUsePwshOption()
+    public void ExecuteTask(string command, string? logFile)
     {
-        return new Option<bool>(
-            aliases: new[] { "--use-pwsh" },
-            description: "Use PowerShell Core (pwsh.exe)");
-    }
+        // Hide the console window when running as a scheduled task
+        // This prevents crontab.exe from showing a terminal window
+        var consoleWindow = GetConsoleWindow();
+        if (consoleWindow != IntPtr.Zero)
+        {
+            ShowWindow(consoleWindow, SW_HIDE);
+        }
 
-    public void ExecuteTask(string command, string? logFile, bool usePwsh)
-    {
         try
         {
             // Check if command is base64 encoded (starts with "base64:")
@@ -54,12 +64,12 @@ public class ExecuteCommand
             if (!string.IsNullOrWhiteSpace(logFile))
             {
                 // Execute with logging
-                exitCode = ExecuteWithLogging(executable, arguments, logFile, usePwsh);
+                exitCode = ExecuteWithLogging(executable, arguments, logFile);
             }
             else
             {
                 // Execute without logging
-                exitCode = ExecuteHidden(executable, arguments, usePwsh);
+                exitCode = ExecuteHidden(executable, arguments);
             }
 
             Environment.Exit(exitCode);
@@ -120,7 +130,7 @@ public class ExecuteCommand
         return parts.ToArray();
     }
 
-    private int ExecuteWithLogging(string command, string? arguments, string logFile, bool usePwsh)
+    private int ExecuteWithLogging(string command, string? arguments, string logFile)
     {
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         var displayCommand = string.IsNullOrWhiteSpace(arguments)
@@ -131,7 +141,7 @@ public class ExecuteCommand
 
         try
         {
-            var psi = CreateProcessStartInfo(command, arguments, usePwsh);
+            var psi = CreateProcessStartInfo(command, arguments);
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
 
@@ -180,9 +190,9 @@ public class ExecuteCommand
         }
     }
 
-    private int ExecuteHidden(string command, string? arguments, bool usePwsh)
+    private int ExecuteHidden(string command, string? arguments)
     {
-        var psi = CreateProcessStartInfo(command, arguments, usePwsh);
+        var psi = CreateProcessStartInfo(command, arguments);
 
         using var process = Process.Start(psi);
         if (process == null)
@@ -194,34 +204,20 @@ public class ExecuteCommand
         return process.ExitCode;
     }
 
-    private ProcessStartInfo CreateProcessStartInfo(string command, string? arguments, bool usePwsh)
+    private ProcessStartInfo CreateProcessStartInfo(string command, string? arguments)
     {
-        var isPowerShellScript = command.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
-        var psi = new ProcessStartInfo();
-
-        if (isPowerShellScript)
+        var psi = new ProcessStartInfo
         {
-            // For PowerShell scripts, execute via powershell.exe or pwsh.exe
-            var powershellExe = usePwsh ? "pwsh.exe" : "powershell.exe";
-            psi.FileName = powershellExe;
-            psi.Arguments = string.IsNullOrWhiteSpace(arguments)
-                ? $"-NoProfile -ExecutionPolicy Bypass -File \"{command}\""
-                : $"-NoProfile -ExecutionPolicy Bypass -File \"{command}\" {arguments}";
-        }
-        else
-        {
-            // For other executables
-            psi.FileName = command;
-            if (!string.IsNullOrWhiteSpace(arguments))
-            {
-                psi.Arguments = arguments;
-            }
-        }
+            FileName = command,
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
 
-        // Critical settings to prevent any window from appearing
-        psi.CreateNoWindow = true;
-        psi.UseShellExecute = false;
-        psi.WindowStyle = ProcessWindowStyle.Hidden;
+        if (!string.IsNullOrWhiteSpace(arguments))
+        {
+            psi.Arguments = arguments;
+        }
 
         return psi;
     }
