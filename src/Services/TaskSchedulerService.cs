@@ -156,46 +156,58 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Using PowerShell for better output handling and timestamp formatting
         var timestamp = "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'";
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"\"{originalCommand}\""
-            : $"\"{originalCommand}\" {originalArguments}";
+            ? $"& '{originalCommand}'"
+            : $"& '{originalCommand}' {originalArguments}";
+
+        // Escape single quotes in paths for PowerShell
+        var escapedLogFile = logFile.Replace("'", "''");
+        var escapedCommand = originalCommand.Replace("'", "''");
+        var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
+        var displayCommand = string.IsNullOrWhiteSpace(escapedArguments)
+            ? escapedCommand
+            : $"{escapedCommand} {escapedArguments}";
 
         var script = $@"
 $timestamp = {timestamp}
-Add-Content -Path '{logFile}' -Value ""[$timestamp] Starting: {fullCommand.Replace("\"", "'")}""
+Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
 try {{
-    $output = & {fullCommand} 2>&1
-    $output | ForEach-Object {{ Add-Content -Path '{logFile}' -Value $_.ToString() }}
+    $output = {fullCommand} 2>&1
+    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
     $exitCode = $LASTEXITCODE
     if ($null -eq $exitCode) {{ $exitCode = 0 }}
     $timestamp = {timestamp}
-    Add-Content -Path '{logFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
+    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
     exit $exitCode
 }} catch {{
     $timestamp = {timestamp}
-    Add-Content -Path '{logFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
+    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
     exit 1
 }}
 ".Trim();
 
-        // Use PowerShell to execute the script
+        // Use Base64 encoding to avoid all quoting/escaping issues
+        var scriptBytes = System.Text.Encoding.Unicode.GetBytes(script);
+        var encodedScript = Convert.ToBase64String(scriptBytes);
+
+        // Use PowerShell to execute the encoded script
         // -NoProfile: Don't load user profile (faster)
         // -NonInteractive: Run without user interaction
         // -WindowStyle Hidden: Hide the PowerShell window (if enabled)
-        // -Command: Execute the script
+        // -EncodedCommand: Execute the Base64-encoded script
         var windowStyleArg = enableHidden ? "-WindowStyle Hidden " : "";
-        return ("powershell.exe", $"-NoProfile -NonInteractive {windowStyleArg}-Command \"{script}\"");
+        return ("powershell.exe", $"-NoProfile -NonInteractive {windowStyleArg}-EncodedCommand {encodedScript}");
     }
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
     {
         // Build a PowerShell script that runs the command hidden
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? $"\"{originalCommand}\""
-            : $"\"{originalCommand}\" {originalArguments}";
+            ? $"& '{originalCommand}'"
+            : $"& '{originalCommand}' {originalArguments}";
 
         var script = $@"
 try {{
-    $output = & {fullCommand} 2>&1
+    $output = {fullCommand} 2>&1
     $exitCode = $LASTEXITCODE
     if ($null -eq $exitCode) {{ $exitCode = 0 }}
     exit $exitCode
@@ -204,8 +216,12 @@ try {{
 }}
 ".Trim();
 
+        // Use Base64 encoding to avoid all quoting/escaping issues
+        var scriptBytes = System.Text.Encoding.Unicode.GetBytes(script);
+        var encodedScript = Convert.ToBase64String(scriptBytes);
+
         // Use PowerShell with hidden window style
-        return ("powershell.exe", $"-NoProfile -NonInteractive -WindowStyle Hidden -Command \"{script}\"");
+        return ("powershell.exe", $"-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand {encodedScript}");
     }
 
     public void DeleteTask(string name)
