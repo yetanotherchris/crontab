@@ -229,7 +229,10 @@ try {{
             ? originalCommand
             : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command \"{fullCommand}\" --log-file \"{logFile}\"";
+        // Escape any quotes in the full command by backslash-escaping them
+        var escapedCommand = fullCommand.Replace("\"", "\\\"");
+
+        var args = $"--command \"{escapedCommand}\" --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
@@ -251,7 +254,10 @@ try {{
             ? originalCommand
             : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command \"{fullCommand}\"";
+        // Escape any quotes in the full command by backslash-escaping them
+        var escapedCommand = fullCommand.Replace("\"", "\\\"");
+
+        var args = $"--command \"{escapedCommand}\"";
 
         if (usePwsh)
         {
