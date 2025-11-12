@@ -152,11 +152,9 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
 
     private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile, bool enableHidden = false)
     {
-        // Build a PowerShell script that logs the execution
-        // Using PowerShell for better output handling and timestamp formatting
-        var timestamp = "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'";
+        // Simplified logging approach: Write script to temp file and execute it
+        // This avoids complex Base64 encoding and escaping issues
 
-        // Escape single quotes in paths for PowerShell
         var escapedLogFile = logFile.Replace("'", "''");
         var escapedCommand = originalCommand.Replace("'", "''");
         var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
@@ -164,41 +162,41 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             ? escapedCommand
             : $"{escapedCommand} {escapedArguments}";
 
-        // Build the command execution based on whether we need to hide the window
+        var commandLower = originalCommand.ToLowerInvariant();
+        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+        var isPowerShellExe = commandLower.EndsWith("powershell.exe") || commandLower.EndsWith("pwsh.exe");
+
+        // Build the command execution
         string commandExecution;
         if (enableHidden)
         {
-            // For hidden execution, use a nested PowerShell call with -WindowStyle Hidden
-            // This ensures that .ps1 scripts and other executables run in a hidden window
-            var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
-
-            if (isPowerShellScript)
+            // For hidden execution with logging - use simplified Start-Process
+            if (isPowerShellScript || isPowerShellExe)
             {
-                // For .ps1 files, use Start-Process with PowerShell for more reliable window hiding
-                // Pass the full command line as a single string to -ArgumentList for proper parsing
-                var psCommandLine = string.IsNullOrWhiteSpace(escapedArguments)
-                    ? $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`""
-                    : $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`" {escapedArguments}";
+                var psArgs = isPowerShellScript
+                    ? (string.IsNullOrWhiteSpace(escapedArguments)
+                        ? $"-WindowStyle Hidden -ExecutionPolicy Bypass -File '{escapedCommand}'"
+                        : $"-WindowStyle Hidden -ExecutionPolicy Bypass -File '{escapedCommand}' {escapedArguments}")
+                    : $"-WindowStyle Hidden {escapedArguments}";
                 commandExecution = $@"
-    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psCommandLine}' -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psArgs}' -WindowStyle Hidden -PassThru -Wait
     $exitCode = $process.ExitCode
     if ($null -eq $exitCode) {{ $exitCode = 0 }}";
             }
             else
             {
-                // For other executables, use Start-Process with -WindowStyle Hidden and capture exit code
                 var startProcessArgs = string.IsNullOrWhiteSpace(escapedArguments)
-                    ? $"-FilePath '{escapedCommand}'"
-                    : $"-FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}'";
+                    ? $"-WindowStyle Hidden -FilePath '{escapedCommand}' -Wait"
+                    : $"-WindowStyle Hidden -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -Wait";
                 commandExecution = $@"
-    $process = Start-Process {startProcessArgs} -WindowStyle Hidden -PassThru -Wait -NoNewWindow
+    $process = Start-Process {startProcessArgs} -PassThru
     $exitCode = $process.ExitCode
     if ($null -eq $exitCode) {{ $exitCode = 0 }}";
             }
         }
         else
         {
-            // Use & operator for normal execution
+            // For normal execution, capture output
             var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
                 ? $"& '{originalCommand}'"
                 : $"& '{originalCommand}' {originalArguments}";
@@ -210,81 +208,52 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         }
 
         var script = $@"
-$timestamp = {timestamp}
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
 try {{{commandExecution}
-    $timestamp = {timestamp}
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
     exit $exitCode
 }} catch {{
-    $timestamp = {timestamp}
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
     exit 1
 }}
 ".Trim();
 
-        // Use Base64 encoding to avoid all quoting/escaping issues
-        var scriptBytes = System.Text.Encoding.Unicode.GetBytes(script);
-        var encodedScript = Convert.ToBase64String(scriptBytes);
+        // Write script to a temp file in the logs directory
+        var scriptFileName = $"{Path.GetFileNameWithoutExtension(logFile)}_wrapper.ps1";
+        var scriptPath = Path.Combine(_logsDirectory, scriptFileName);
+        File.WriteAllText(scriptPath, script);
 
-        // Use PowerShell to execute the encoded script
-        // -NoProfile: Don't load user profile (faster)
-        // -NonInteractive: Run without user interaction
-        // -WindowStyle Hidden: Hide the outer PowerShell window (if enabled)
-        // -EncodedCommand: Execute the Base64-encoded script
+        // Execute the script file
         var windowStyleArg = enableHidden ? "-WindowStyle Hidden " : "";
-        return ("powershell.exe", $"-NoProfile -NonInteractive {windowStyleArg}-EncodedCommand {encodedScript}");
+        return ("powershell.exe", $"-NoProfile {windowStyleArg}-ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
     private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
     {
-        // Build a PowerShell script that runs the command hidden
-        // Use nested PowerShell for .ps1 files or Start-Process for other executables
-        var escapedCommand = originalCommand.Replace("'", "''");
-        var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
-
+        // Simplified approach: Use Start-Process -WindowStyle Hidden -FilePath directly
+        var commandLower = originalCommand.ToLowerInvariant();
         var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+        var isPowerShellExe = commandLower.EndsWith("powershell.exe") || commandLower.EndsWith("pwsh.exe");
 
-        string commandExecution;
-        if (isPowerShellScript)
+        if (isPowerShellScript || isPowerShellExe)
         {
-            // For .ps1 files, use Start-Process with PowerShell for more reliable window hiding
-            // Pass the full command line as a single string to -ArgumentList for proper parsing
-            var psCommandLine = string.IsNullOrWhiteSpace(escapedArguments)
-                ? $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`""
-                : $"-NoProfile -NonInteractive -WindowStyle Hidden -File `"{escapedCommand}`" {escapedArguments}";
-            commandExecution = $@"
-    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList '{psCommandLine}' -WindowStyle Hidden -PassThru -Wait -NoNewWindow
-    $exitCode = $process.ExitCode
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}
-    exit $exitCode";
+            // For .ps1 files or PowerShell executables, use powershell.exe -WindowStyle Hidden
+            var args = isPowerShellScript
+                ? $"-WindowStyle Hidden -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}".Trim()
+                : $"-WindowStyle Hidden {originalArguments}".Trim();
+            return ("powershell.exe", args);
         }
         else
         {
-            // For other executables, use Start-Process with -WindowStyle Hidden
-            var startProcessArgs = string.IsNullOrWhiteSpace(escapedArguments)
-                ? $"-FilePath '{escapedCommand}'"
-                : $"-FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}'";
-            commandExecution = $@"
-    $process = Start-Process {startProcessArgs} -WindowStyle Hidden -PassThru -Wait -NoNewWindow
-    $exitCode = $process.ExitCode
-    if ($null -eq $exitCode) {{ $exitCode = 0 }}
-    exit $exitCode";
+            // For other executables, use Start-Process -WindowStyle Hidden -FilePath
+            var startProcessArgs = string.IsNullOrWhiteSpace(originalArguments)
+                ? $"-WindowStyle Hidden -FilePath \"{originalCommand}\" -Wait"
+                : $"-WindowStyle Hidden -FilePath \"{originalCommand}\" -ArgumentList '{originalArguments}' -Wait";
+            return ("powershell.exe", $"-Command \"Start-Process {startProcessArgs}\"");
         }
-
-        var script = $@"
-try {{{commandExecution}
-}} catch {{
-    exit 1
-}}
-".Trim();
-
-        // Use Base64 encoding to avoid all quoting/escaping issues
-        var scriptBytes = System.Text.Encoding.Unicode.GetBytes(script);
-        var encodedScript = Convert.ToBase64String(scriptBytes);
-
-        // Use PowerShell with hidden window style
-        return ("powershell.exe", $"-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand {encodedScript}");
     }
 
     public void DeleteTask(string name)
