@@ -226,20 +226,58 @@ public class CrontabService : ICrontabService
             arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
         }
 
-        // Check if command starts with @log prefix
+        // Check if command starts with @log, @user, or @system prefixes (can be in any order)
         var enableLogging = false;
+        var runAsSystem = false;  // @system = run whether logged in or not (needs password)
+                                   // default/@user = run only when logged in (no password, uses window hiding)
 
-        if (command.StartsWith("@log", StringComparison.OrdinalIgnoreCase))
+        // Keep checking for prefixes until we don't find any more
+        var foundPrefix = true;
+        while (foundPrefix)
         {
-            enableLogging = true;
-            command = command.Substring(4).TrimStart();
+            foundPrefix = false;
 
-            // If command is now empty, it means @log was followed by a space and the actual command is in arguments
-            if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+            if (command.StartsWith("@log", StringComparison.OrdinalIgnoreCase))
             {
-                var argParts = arguments.Split(new[] { ' ' }, 2);
-                command = argParts[0];
-                arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                enableLogging = true;
+                command = command.Substring(4).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @log was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
+            }
+            else if (command.StartsWith("@system", StringComparison.OrdinalIgnoreCase))
+            {
+                runAsSystem = true;
+                command = command.Substring(7).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @system was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
+            }
+            else if (command.StartsWith("@user", StringComparison.OrdinalIgnoreCase))
+            {
+                // @user is the default, just remove the prefix
+                command = command.Substring(5).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @user was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
             }
         }
 
@@ -253,7 +291,8 @@ public class CrontabService : ICrontabService
             Command = command,
             Arguments = arguments,
             OriginalLine = line,
-            EnableLogging = enableLogging
+            EnableLogging = enableLogging,
+            RunAsSystem = runAsSystem
         };
     }
 
@@ -314,4 +353,5 @@ public class CrontabEntry
     public string Arguments { get; set; } = string.Empty;
     public string OriginalLine { get; set; } = string.Empty;
     public bool EnableLogging { get; set; } = false;
+    public bool RunAsSystem { get; set; } = false;  // @system directive - runs whether logged in or not
 }

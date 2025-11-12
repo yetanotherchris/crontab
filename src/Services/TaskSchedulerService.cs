@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -107,12 +107,12 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
 
-        // Configure task settings to replicate Linux cron behavior
+        // Configure task settings
         taskDefinition.Settings.ExecutionTimeLimit = TimeSpan.Zero;  // Remove the default 3-day execution time limit
         taskDefinition.Settings.StartWhenAvailable = false;  // Don't run missed tasks
         taskDefinition.Settings.DisallowStartIfOnBatteries = false;  // Run on battery power
@@ -122,36 +122,61 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
 
-        // Create action - wrap with logging if enabled, otherwise execute directly
-        if (enableLogging)
+        // Create action
+        // For @user mode (default): Always wrap with hidden window, optionally with logging
+        // For @system mode: Execute directly (non-interactive), optionally with logging
+        string wrappedCommand, wrappedArguments;
+
+        if (runAsSystem)
         {
-            var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-            var (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
-            taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
+            // @system mode: non-interactive, no window hiding needed
+            if (enableLogging)
+            {
+                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
+            }
+            else
+            {
+                wrappedCommand = command;
+                wrappedArguments = arguments;
+            }
         }
         else
         {
-            taskDefinition.Actions.Add(new ExecAction(command, arguments, null));
+            // @user mode (default): hide windows, optionally with logging
+            if (enableLogging)
+            {
+                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+                (wrappedCommand, wrappedArguments) = WrapCommandWithLoggingAndHidden(command, arguments, logFile, name);
+            }
+            else
+            {
+                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments, name);
+            }
         }
+
+        taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
 
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
 
-        // Register the task in the Crontab folder
-        // Use S4U (Service-for-User) logon to run non-interactively whether user is logged in or not
-        // This replicates Linux cron behavior: no visible windows, runs as daemon
+        // Register the task with appropriate logon type
+        // @user (default): InteractiveToken - no password needed, runs when logged in
+        // @system: Password - requires password, runs whether logged in or not
+        var logonType = runAsSystem ? TaskLogonType.Password : TaskLogonType.InteractiveToken;
+
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.CreateOrUpdate,
-            null,
-            null,
-            TaskLogonType.S4U);
+            runAsSystem ? Environment.UserName : null,  // Username for @system
+            runAsSystem ? null : null,  // Password will be prompted by Task Scheduler
+            logonType);
     }
 
     private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
     {
-        // Simple logging approach: Write script to temp file and execute it
+        // Simple logging approach for @system mode: Write script to temp file and execute it
         var escapedLogFile = logFile.Replace("'", "''");
         var escapedCommand = originalCommand.Replace("'", "''");
         var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
@@ -187,8 +212,89 @@ try {{
         var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
         File.WriteAllText(scriptPath, script);
 
-        // Execute the script file (no need for -WindowStyle Hidden, S4U runs non-interactively)
+        // Execute the script file (no WindowStyle Hidden for @system, runs non-interactively)
         return ("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+    }
+
+    private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName)
+    {
+        // Logging + window hiding for @user mode
+        var escapedLogFile = logFile.Replace("'", "''");
+        var escapedCommand = originalCommand.Replace("'", "''");
+        var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
+        var displayCommand = string.IsNullOrWhiteSpace(escapedArguments)
+            ? escapedCommand
+            : $"{escapedCommand} {escapedArguments}";
+
+        // Execute command and capture output
+        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
+            ? $"& '{originalCommand}'"
+            : $"& '{originalCommand}' {originalArguments}";
+
+        var script = $@"
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Starting: {displayCommand}""
+try {{
+    $output = {fullCommand} 2>&1
+    $output | ForEach-Object {{ Add-Content -Path '{escapedLogFile}' -Value $_.ToString() }}
+    $exitCode = $LASTEXITCODE
+    if ($null -eq $exitCode) {{ $exitCode = 0 }}
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Completed with exit code: $exitCode""
+    exit $exitCode
+}} catch {{
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -Path '{escapedLogFile}' -Value ""[$timestamp] Error: $($_.Exception.Message)""
+    exit 1
+}}
+".Trim();
+
+        // Write script to a temp file in the wrapper-scripts directory
+        var scriptFileName = $"{taskName}_wrapper.ps1";
+        var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
+        File.WriteAllText(scriptPath, script);
+
+        // Execute with hidden window for @user mode
+        return ("powershell.exe", $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+    }
+
+    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName)
+    {
+        // Window hiding only for @user mode (no logging)
+        var isPowerShellScript = originalCommand.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+
+        if (isPowerShellScript)
+        {
+            // For .ps1 files, use powershell.exe -WindowStyle Hidden directly
+            var args = string.IsNullOrWhiteSpace(originalArguments)
+                ? $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\""
+                : $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{originalCommand}\" {originalArguments}";
+            return ("powershell.exe", args);
+        }
+        else
+        {
+            // For other executables, wrap with Start-Process in a script file
+            var escapedCommand = originalCommand.Replace("'", "''");
+            var escapedArguments = string.IsNullOrWhiteSpace(originalArguments) ? "" : originalArguments.Replace("'", "''");
+
+            string script;
+            if (string.IsNullOrWhiteSpace(escapedArguments))
+            {
+                script = $"Start-Process -FilePath '{escapedCommand}' -WindowStyle Hidden -Wait";
+            }
+            else
+            {
+                script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
+            }
+
+            // Write script to a temp file in the wrapper-scripts directory
+            var scriptFileName = $"{taskName}_wrapper.ps1";
+            var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
+            File.WriteAllText(scriptPath, script);
+
+            // Execute with hidden window
+            return ("powershell.exe", $"-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"");
+        }
     }
 
     public void DeleteTask(string name)
@@ -272,7 +378,8 @@ try {{
                     entry.Arguments,
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
-                    entry.EnableLogging);
+                    entry.EnableLogging,
+                    entry.RunAsSystem);
             }
             catch (Exception ex)
             {
