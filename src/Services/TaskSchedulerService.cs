@@ -223,16 +223,18 @@ try {{
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
+        // Quote the command if it contains spaces (needed for proper parsing by ExecuteCommand)
+        var quotedCommand = originalCommand.Contains(' ') && !originalCommand.StartsWith('"')
+            ? $"\"{originalCommand}\""
+            : originalCommand;
+
         // Combine command and arguments into a single string for --command
         // The entire command+args must be quoted as a single value for the --command option
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? originalCommand
-            : $"{originalCommand} {originalArguments}";
+            ? quotedCommand
+            : $"{quotedCommand} {originalArguments}";
 
-        // Escape any quotes in the full command by backslash-escaping them
-        var escapedCommand = fullCommand.Replace("\"", "\\\"");
-
-        var args = $"--command \"{escapedCommand}\" --log-file \"{logFile}\"";
+        var args = $"--command \"{fullCommand}\" --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
@@ -248,16 +250,18 @@ try {{
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
+        // Quote the command if it contains spaces (needed for proper parsing by ExecuteCommand)
+        var quotedCommand = originalCommand.Contains(' ') && !originalCommand.StartsWith('"')
+            ? $"\"{originalCommand}\""
+            : originalCommand;
+
         // Combine command and arguments into a single string for --command
         // The entire command+args must be quoted as a single value for the --command option
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? originalCommand
-            : $"{originalCommand} {originalArguments}";
+            ? quotedCommand
+            : $"{quotedCommand} {originalArguments}";
 
-        // Escape any quotes in the full command by backslash-escaping them
-        var escapedCommand = fullCommand.Replace("\"", "\\\"");
-
-        var args = $"--command \"{escapedCommand}\"";
+        var args = $"--command \"{fullCommand}\"";
 
         if (usePwsh)
         {
