@@ -131,7 +131,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             else
             {
                 // Only hidden, no logging
-                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments);
+                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(name, command, arguments);
             }
             taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
         }
@@ -234,7 +234,7 @@ try {{{commandExecution}
         return ("powershell.exe", $"-NoProfile {windowStyleArg}-ExecutionPolicy Bypass -File \"{scriptPath}\"");
     }
 
-    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
+    private (string command, string arguments) WrapCommandWithHidden(string taskName, string originalCommand, string originalArguments)
     {
         // Simplified approach: Write script to temp file to avoid quoting issues
         var commandLower = originalCommand.ToLowerInvariant();
@@ -265,8 +265,8 @@ try {{{commandExecution}
                 script = $"Start-Process -FilePath '{escapedCommand}' -ArgumentList '{escapedArguments}' -WindowStyle Hidden -Wait";
             }
 
-            // Write script to a temp file in the wrapper-scripts directory
-            var scriptFileName = $"hidden_{Path.GetFileNameWithoutExtension(originalCommand)}_{Guid.NewGuid():N}.ps1";
+            // Write script to a temp file in the wrapper-scripts directory with consistent naming
+            var scriptFileName = $"{taskName}_wrapper.ps1";
             var scriptPath = Path.Combine(_wrapperScriptsDirectory, scriptFileName);
             File.WriteAllText(scriptPath, script);
 
