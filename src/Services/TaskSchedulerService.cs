@@ -117,6 +117,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         taskDefinition.Settings.StartWhenAvailable = false;  // Don't run missed tasks
         taskDefinition.Settings.DisallowStartIfOnBatteries = false;  // Run on battery power
         taskDefinition.Settings.StopIfGoingOnBatteries = false;  // Don't stop if switching to battery
+        taskDefinition.Settings.Hidden = true;  // Hide task from Task Scheduler UI
 
         // Parse schedule and create appropriate trigger
         var trigger = ParseSchedule(schedule);

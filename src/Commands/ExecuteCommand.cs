@@ -1,10 +1,19 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Crontab.Commands;
 
 public class ExecuteCommand
 {
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_HIDE = 0;
+
     public Option<string?> CreateExecuteOption()
     {
         return new Option<string?>(
@@ -28,6 +37,14 @@ public class ExecuteCommand
 
     public void ExecuteTask(string command, string? logFile, bool usePwsh)
     {
+        // Hide the console window when running as a scheduled task
+        // This prevents crontab.exe from showing a terminal window
+        var consoleWindow = GetConsoleWindow();
+        if (consoleWindow != IntPtr.Zero)
+        {
+            ShowWindow(consoleWindow, SW_HIDE);
+        }
+
         try
         {
             // Check if command is base64 encoded (starts with "base64:")
