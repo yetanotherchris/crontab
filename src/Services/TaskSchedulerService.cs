@@ -223,18 +223,16 @@ try {{
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Quote the command if it contains spaces (needed for proper parsing by ExecuteCommand)
-        var quotedCommand = originalCommand.Contains(' ') && !originalCommand.StartsWith('"')
-            ? $"\"{originalCommand}\""
-            : originalCommand;
-
-        // Combine command and arguments into a single string for --command
-        // The entire command+args must be quoted as a single value for the --command option
+        // Combine command and arguments into a single string
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? quotedCommand
-            : $"{quotedCommand} {originalArguments}";
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command \"{fullCommand}\" --log-file \"{logFile}\"";
+        // Base64 encode the command to avoid any quoting/escaping issues
+        var bytes = System.Text.Encoding.UTF8.GetBytes(fullCommand);
+        var base64Command = Convert.ToBase64String(bytes);
+
+        var args = $"--command base64:{base64Command} --log-file \"{logFile}\"";
 
         if (usePwsh)
         {
@@ -250,18 +248,16 @@ try {{
         // This completely eliminates PowerShell and prevents any window flash
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
-        // Quote the command if it contains spaces (needed for proper parsing by ExecuteCommand)
-        var quotedCommand = originalCommand.Contains(' ') && !originalCommand.StartsWith('"')
-            ? $"\"{originalCommand}\""
-            : originalCommand;
-
-        // Combine command and arguments into a single string for --command
-        // The entire command+args must be quoted as a single value for the --command option
+        // Combine command and arguments into a single string
         var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? quotedCommand
-            : $"{quotedCommand} {originalArguments}";
+            ? originalCommand
+            : $"{originalCommand} {originalArguments}";
 
-        var args = $"--command \"{fullCommand}\"";
+        // Base64 encode the command to avoid any quoting/escaping issues
+        var bytes = System.Text.Encoding.UTF8.GetBytes(fullCommand);
+        var base64Command = Convert.ToBase64String(bytes);
+
+        var args = $"--command base64:{base64Command}";
 
         if (usePwsh)
         {
