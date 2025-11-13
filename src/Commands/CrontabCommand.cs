@@ -116,40 +116,42 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("  [cyan]@log[/]     Capture command output to log files");
         AnsiConsole.MarkupLine($"            Logs stored in: [dim]{Markup.Escape("%USERPROFILE%\\.crontab\\logs")}[/]");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [cyan]@s4u[/]     Use Service-For-User authentication (no password needed)");
-        AnsiConsole.MarkupLine("            [yellow]⚠ Limitations:[/] No network access (mapped drives, UNC paths, etc.)");
-        AnsiConsole.MarkupLine("            Use for local tasks only (file operations, scripts without network)");
+        AnsiConsole.MarkupLine("  [cyan]@user[/]    Use password-based authentication for full network access");
+        AnsiConsole.MarkupLine("            Enables access to: mapped drives, UNC paths, domain shares");
+        AnsiConsole.MarkupLine("            Requires password stored in Windows Credential Manager");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @s4u command[/]");
+        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @user command[/]");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("[bold]Behavior:[/]");
         AnsiConsole.MarkupLine("  Tasks run whether user is logged in or not (non-interactive)");
         AnsiConsole.MarkupLine("  Windows are automatically hidden to prevent flashing");
+        AnsiConsole.MarkupLine("  [green]Default:[/] Tasks run with S4U authentication (no password needed)");
+        AnsiConsole.MarkupLine("            ✓ Has internet access for downloads, APIs, cloud services");
+        AnsiConsole.MarkupLine("            ✗ Cannot access authenticated network resources (mapped drives, UNC paths)");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("[bold]Credentials:[/]");
-        AnsiConsole.MarkupLine("  On first use, you'll be prompted for your password:");
+        AnsiConsole.MarkupLine("  Only required for tasks with [cyan]@user[/] keyword:");
         AnsiConsole.MarkupLine("  - Username: Automatically detected (run [cyan]whoami[/] to see it)");
         AnsiConsole.MarkupLine("  - Password: Your Microsoft account password (or local account password)");
         AnsiConsole.MarkupLine("  - Storage: Securely stored in Windows Credential Manager");
-        AnsiConsole.MarkupLine("  This allows tasks to run whether you're logged in or not, with network access");
-        AnsiConsole.MarkupLine("  [dim](Tasks with @s4u don't need stored credentials)[/]");
+        AnsiConsole.MarkupLine("  [dim](Most tasks don't need @user unless accessing network shares)[/]");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
-        AnsiConsole.MarkupLine("  [dim]# Run backup every day at 3 AM[/]");
-        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("C:\\scripts\\backup.bat")}");
+        AnsiConsole.MarkupLine("  [dim]# Download file daily at 3 AM (default S4U, no password needed)[/]");
+        AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] {Markup.Escape("powershell.exe -Command \"Invoke-WebRequest https://example.com/data.json -OutFile C:\\data\\latest.json\"")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage daily at 3 AM with logging[/]");
+        AnsiConsole.MarkupLine("  [dim]# Sync to cloud storage with logging (internet access, no password)[/]");
         AnsiConsole.MarkupLine($"  [green]0 3 * * *[/] [cyan]@log[/] {Markup.Escape("rclone sync C:\\data remote:s3-backup")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Local file cleanup every 15 minutes (no network, no password)[/]");
-        AnsiConsole.MarkupLine($"  [green]*/15 * * * *[/] [cyan]@s4u[/] {Markup.Escape("powershell.exe -File C:\\scripts\\cleanup.ps1")}");
+        AnsiConsole.MarkupLine("  [dim]# Local file cleanup every 15 minutes (no password)[/]");
+        AnsiConsole.MarkupLine($"  [green]*/15 * * * *[/] {Markup.Escape("powershell.exe -File C:\\scripts\\cleanup.ps1")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM with logging[/]");
-        AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
+        AnsiConsole.MarkupLine("  [dim]# Backup to network share (requires @user for UNC path access)[/]");
+        AnsiConsole.MarkupLine($"  [green]0 2 * * *[/] [cyan]@user[/] {Markup.Escape("robocopy C:\\important \\\\server\\backups /MIR")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Local maintenance task with logging and no password[/]");
-        AnsiConsole.MarkupLine($"  [green]0 2 * * *[/] [cyan]@log @s4u[/] {Markup.Escape("C:\\scripts\\local-maintenance.ps1")}");
+        AnsiConsole.MarkupLine("  [dim]# Copy to mapped drive with logging (requires @user)[/]");
+        AnsiConsole.MarkupLine($"  [green]0 1 * * *[/] [cyan]@log @user[/] {Markup.Escape("xcopy C:\\data Z:\\backup\\ /E /Y")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");
@@ -238,37 +240,44 @@ public class CrontabCommand
         {
             var username = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
 
-            // Check if we have stored credentials, if not prompt before opening editor
-            string? password = _credentialService.GetPassword(username);
-            if (password == null)
-            {
-                AnsiConsole.WriteLine();
-                AnsiConsole.MarkupLine("[yellow]No stored credentials found.[/]");
-                AnsiConsole.MarkupLine("[yellow]Please enter your password to allow tasks to run whether you're logged in or not:[/]");
-                AnsiConsole.MarkupLine("[dim](This will be securely stored in Windows Credential Manager)[/]");
-                AnsiConsole.MarkupLine("[dim](This is usually your Microsoft account password, unless you're on a domain or using a local user)[/]");
-                AnsiConsole.MarkupLine("[dim](Tasks marked with @s4u don't need a password but won't have network access)[/]");
-                AnsiConsole.WriteLine();
-
-                password = AnsiConsole.Prompt(
-                    new TextPrompt<string>("Password:")
-                        .Secret());
-
-                _credentialService.StorePassword(username, password);
-                AnsiConsole.MarkupLine("[green]✓ Credentials stored securely in Windows Credential Manager[/]");
-                AnsiConsole.WriteLine();
-            }
-            else
-            {
-                AnsiConsole.MarkupLine("[dim]Using stored credentials from Windows Credential Manager[/]");
-            }
-
             AnsiConsole.MarkupLine($"[dim]Opening editor for crontab file...[/]");
 
             _crontabService.OpenEditor();
 
             // Read crontab entries to see if we need to create tasks
             var entries = _crontabService.ReadCrontab().ToList();
+
+            // Check if any tasks require password (UseS4U = false means @user was specified)
+            var requiresPassword = entries.Any(e => !e.UseS4U);
+            string? password = null;
+
+            if (requiresPassword)
+            {
+                // Check if we have stored credentials
+                password = _credentialService.GetPassword(username);
+                if (password == null)
+                {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine("[yellow]One or more tasks use [cyan]@user[/] and require password authentication.[/]");
+                    AnsiConsole.MarkupLine("[yellow]Please enter your password for authenticated network access:[/]");
+                    AnsiConsole.MarkupLine("[dim](This will be securely stored in Windows Credential Manager)[/]");
+                    AnsiConsole.MarkupLine("[dim](This is usually your Microsoft account password, unless you're on a domain or using a local user)[/]");
+                    AnsiConsole.MarkupLine("[dim](Tasks without @user don't need a password)[/]");
+                    AnsiConsole.WriteLine();
+
+                    password = AnsiConsole.Prompt(
+                        new TextPrompt<string>("Password:")
+                            .Secret());
+
+                    _credentialService.StorePassword(username, password);
+                    AnsiConsole.MarkupLine("[green]✓ Credentials stored securely in Windows Credential Manager[/]");
+                    AnsiConsole.WriteLine();
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[dim]Using stored credentials from Windows Credential Manager for @user tasks[/]");
+                }
+            }
 
             if (entries.Any())
             {
