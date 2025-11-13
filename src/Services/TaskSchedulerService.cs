@@ -138,16 +138,28 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
 
+        // Delete existing task if it exists to force credential prompt
+        // Using CreateOrUpdate would reuse existing credentials without prompting
+        try
+        {
+            DeleteTask(name);
+        }
+        catch
+        {
+            // Task doesn't exist, that's fine
+        }
+
         // Get fully qualified username (e.g., "COMPUTERNAME\username" or "DOMAIN\username")
         var fullyQualifiedUsername = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
 
         // Register the task to run whether user is logged on or not
         // This prevents windows from appearing and runs non-interactively
         // Using Password logon type ensures network access is available
+        // Using Create (not CreateOrUpdate) with null password will always prompt for credentials
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
-            TaskCreation.CreateOrUpdate,
+            TaskCreation.Create,
             fullyQualifiedUsername,  // Fully qualified username (COMPUTERNAME\user or DOMAIN\user)
             null,  // Will prompt for password
             TaskLogonType.Password);  // Run whether user is logged on or not (with network access)
