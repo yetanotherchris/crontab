@@ -113,11 +113,16 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("[bold]Keywords:[/]");
         AnsiConsole.MarkupLine("  [cyan]@log[/]     Capture command output to log files");
         AnsiConsole.MarkupLine($"            Logs stored in: [dim]{Markup.Escape("%USERPROFILE%\\.crontab\\logs")}[/]");
-        AnsiConsole.MarkupLine("  [cyan]@user[/]    Run only when logged in (default, no password needed)");
-        AnsiConsole.MarkupLine("            Windows are hidden automatically");
-        AnsiConsole.MarkupLine("  [cyan]@system[/]  Run whether logged in or not (requires password)");
-        AnsiConsole.MarkupLine("            More like Linux cron, runs as background service");
-        AnsiConsole.MarkupLine("  [dim]Keywords can be combined: @log @system command[/]");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("[bold]Behavior:[/]");
+        AnsiConsole.MarkupLine("  Tasks run whether user is logged in or not (non-interactive)");
+        AnsiConsole.MarkupLine("  Windows are automatically hidden to prevent flashing");
+        AnsiConsole.MarkupLine("");
+        AnsiConsole.MarkupLine("[bold]Credentials:[/]");
+        AnsiConsole.MarkupLine("  When creating tasks, Windows will prompt for your password:");
+        AnsiConsole.MarkupLine("  - Username: Automatically detected (run [cyan]whoami[/] to see it)");
+        AnsiConsole.MarkupLine("  - Password: Your Microsoft account password (or local account password)");
+        AnsiConsole.MarkupLine("  This allows tasks to run whether you're logged in or not, with network access");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
@@ -133,8 +138,8 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("  [dim]# Weekly report on Monday at 9 AM with logging[/]");
         AnsiConsole.MarkupLine($"  [green]0 9 * * 1[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\weekly-report.bat")}");
         AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("  [dim]# Run system task whether logged in or not (requires password)[/]");
-        AnsiConsole.MarkupLine($"  [green]0 2 * * *[/] [cyan]@log @system[/] {Markup.Escape("C:\\scripts\\maintenance.ps1")}");
+        AnsiConsole.MarkupLine("  [dim]# System maintenance task with logging[/]");
+        AnsiConsole.MarkupLine($"  [green]0 2 * * *[/] [cyan]@log[/] {Markup.Escape("C:\\scripts\\maintenance.ps1")}");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine($"[dim]{Markup.Escape("Run 'crontab -e' to edit your scheduled jobs")}[/]");

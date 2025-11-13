@@ -7,7 +7,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -104,7 +104,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, bool runAsSystem = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -120,37 +120,17 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         var trigger = ParseSchedule(schedule);
         taskDefinition.Triggers.Add(trigger);
 
-        // Create action
-        // For @user mode (default): Always wrap with hidden window, optionally with logging
-        // For @system mode: Execute directly (non-interactive), optionally with logging
+        // Create action - always wrap with hidden window wrapper, optionally with logging
         string wrappedCommand, wrappedArguments;
 
-        if (runAsSystem)
+        if (enableLogging)
         {
-            // @system mode: non-interactive, no window hiding needed
-            if (enableLogging)
-            {
-                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
-            }
-            else
-            {
-                wrappedCommand = command;
-                wrappedArguments = arguments;
-            }
+            var logFile = Path.Combine(_logsDirectory, $"{name}.log");
+            (wrappedCommand, wrappedArguments) = WrapCommandWithLogging(command, arguments, logFile);
         }
         else
         {
-            // @user mode (default): hide windows, optionally with logging
-            if (enableLogging)
-            {
-                var logFile = Path.Combine(_logsDirectory, $"{name}.log");
-                (wrappedCommand, wrappedArguments) = WrapCommandWithLoggingAndHidden(command, arguments, logFile, name);
-            }
-            else
-            {
-                (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments, name);
-            }
+            (wrappedCommand, wrappedArguments) = WrapCommandWithHidden(command, arguments);
         }
 
         taskDefinition.Actions.Add(new ExecAction(wrappedCommand, wrappedArguments, null));
@@ -158,44 +138,24 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
 
-        // Register the task with appropriate logon type
-        // @user (default): InteractiveToken - no password needed, runs when logged in
-        // @system: Password - requires password, runs whether logged in or not
-        var logonType = runAsSystem ? TaskLogonType.Password : TaskLogonType.InteractiveToken;
+        // Get fully qualified username (e.g., "COMPUTERNAME\username" or "DOMAIN\username")
+        var fullyQualifiedUsername = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
 
+        // Register the task to run whether user is logged on or not
+        // This prevents windows from appearing and runs non-interactively
+        // Using Password logon type ensures network access is available
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.CreateOrUpdate,
-            runAsSystem ? Environment.UserName : null,  // Username for @system
-            runAsSystem ? null : null,  // Password will be prompted by Task Scheduler
-            logonType);
+            fullyQualifiedUsername,  // Fully qualified username (COMPUTERNAME\user or DOMAIN\user)
+            null,  // Will prompt for password
+            TaskLogonType.Password);  // Run whether user is logged on or not (with network access)
     }
 
     private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
     {
-        // For @system mode with logging: Use crontab.exe to handle logging
-        // This provides consistent logging behavior across @user and @system modes
-        var crontabExe = Environment.ProcessPath ?? "crontab.exe";
-
-        // Combine command and arguments into a single string
-        var fullCommand = string.IsNullOrWhiteSpace(originalArguments)
-            ? originalCommand
-            : $"{originalCommand} {originalArguments}";
-
-        // Base64 encode the command to avoid any quoting/escaping issues
-        var bytes = System.Text.Encoding.UTF8.GetBytes(fullCommand);
-        var base64Command = Convert.ToBase64String(bytes);
-
-        var args = $"--command base64:{base64Command} --log-file \"{logFile}\"";
-
-        return (crontabExe, args);
-    }
-
-    private (string command, string arguments) WrapCommandWithLoggingAndHidden(string originalCommand, string originalArguments, string logFile, string taskName)
-    {
         // Use crontab.exe --command to run commands with logging and hidden window
-        // This prevents any window from appearing
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
         // Combine command and arguments into a single string
@@ -212,10 +172,9 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         return (crontabExe, args);
     }
 
-    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments, string taskName)
+    private (string command, string arguments) WrapCommandWithHidden(string originalCommand, string originalArguments)
     {
         // Use crontab.exe --command to run commands with hidden window (no logging)
-        // This prevents any window from appearing
         var crontabExe = Environment.ProcessPath ?? "crontab.exe";
 
         // Combine command and arguments into a single string
@@ -313,8 +272,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
                     entry.Arguments,
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
-                    entry.EnableLogging,
-                    entry.RunAsSystem);
+                    entry.EnableLogging);
             }
             catch (Exception ex)
             {

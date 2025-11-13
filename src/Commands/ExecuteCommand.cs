@@ -206,19 +206,12 @@ public class ExecuteCommand
 
     private ProcessStartInfo CreateProcessStartInfo(string command, string? arguments)
     {
-        var psi = new ProcessStartInfo
+        return new ProcessStartInfo
         {
             FileName = command,
-            CreateNoWindow = true,
+            Arguments = arguments,
             UseShellExecute = false,
-            WindowStyle = ProcessWindowStyle.Hidden
+            CreateNoWindow = true
         };
-
-        if (!string.IsNullOrWhiteSpace(arguments))
-        {
-            psi.Arguments = arguments;
-        }
-
-        return psi;
     }
 }
