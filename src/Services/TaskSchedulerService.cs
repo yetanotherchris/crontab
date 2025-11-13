@@ -11,7 +11,7 @@ public interface ITaskSchedulerService
     TaskInfo? GetTask(string name);
     void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null);
     void DeleteTask(string name);
-    void SyncCrontab(IEnumerable<CrontabEntry> entries);
+    void SyncCrontab(IEnumerable<CrontabEntry> entries, string? password = null);
     void RemoveAllCronTasks();
     void CreateFolder(string folderPath);
     void DeleteFolder(string folderPath);
@@ -247,7 +247,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         }
     }
 
-    public void SyncCrontab(IEnumerable<CrontabEntry> entries)
+    public void SyncCrontab(IEnumerable<CrontabEntry> entries, string? password = null)
     {
         var errors = new List<string>();
         var entriesList = entries.ToList();
@@ -274,23 +274,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             }
         }
 
-        // Prompt for password once if we have tasks to create
-        string? password = null;
-        if (entriesList.Any())
-        {
-            var username = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
-
-            AnsiConsole.MarkupLine($"[yellow]Creating {entriesList.Count} scheduled task(s)...[/]");
-            AnsiConsole.MarkupLine($"[dim]Username: {Markup.Escape(username)}[/]");
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[yellow]Please enter your password to allow tasks to run whether you're logged in or not:[/]");
-
-            password = AnsiConsole.Prompt(
-                new TextPrompt<string>("Password:")
-                    .Secret());
-        }
-
-        // Create or update tasks from crontab using the same password for all
+        // Create or update tasks from crontab using the provided password
         foreach (var entry in entriesList)
         {
             try

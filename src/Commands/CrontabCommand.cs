@@ -230,16 +230,34 @@ public class CrontabCommand
 
             _crontabService.OpenEditor();
 
-            // After editing, sync with Task Scheduler
+            // Read crontab entries to see if we need to create tasks
+            var entries = _crontabService.ReadCrontab().ToList();
+
+            // Prompt for password before starting status display (if we have tasks to create)
+            string? password = null;
+            if (entries.Any())
+            {
+                var username = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine($"[yellow]Creating {entries.Count} scheduled task(s)...[/]");
+                AnsiConsole.MarkupLine($"[dim]Username: {Markup.Escape(username)}[/]");
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[yellow]Please enter your password to allow tasks to run whether you're logged in or not:[/]");
+
+                password = AnsiConsole.Prompt(
+                    new TextPrompt<string>("Password:")
+                        .Secret());
+            }
+
+            // After collecting password, sync with Task Scheduler
             AnsiConsole.Status()
                 .Start("Syncing crontab with Task Scheduler...", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Dots);
-                    var entries = _crontabService.ReadCrontab().ToList();
-                    _taskScheduler.SyncCrontab(entries);
+                    _taskScheduler.SyncCrontab(entries, password);
                 });
 
-            var entries = _crontabService.ReadCrontab().ToList();
             var cronTasks = _taskScheduler.GetCronTasks().ToList();
 
             AnsiConsole.MarkupLine($"[green]✓ Crontab updated - {entries.Count} entries, {cronTasks.Count} tasks synchronized[/]");
