@@ -1,4 +1,6 @@
 using Microsoft.Win32.TaskScheduler;
+using Spectre.Console;
+using System.Security;
 
 namespace Crontab.Services;
 
@@ -7,7 +9,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries);
     void RemoveAllCronTasks();
@@ -104,7 +106,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -138,8 +140,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
 
-        // Delete existing task if it exists to force credential prompt
-        // Using CreateOrUpdate would reuse existing credentials without prompting
+        // Delete existing task if it exists to ensure clean registration
         try
         {
             DeleteTask(name);
@@ -155,13 +156,12 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Register the task to run whether user is logged on or not
         // This prevents windows from appearing and runs non-interactively
         // Using Password logon type ensures network access is available
-        // Using Create (not CreateOrUpdate) with null password will always prompt for credentials
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.Create,
             fullyQualifiedUsername,  // Fully qualified username (COMPUTERNAME\user or DOMAIN\user)
-            null,  // Will prompt for password
+            password,  // Use provided password or null to prompt
             TaskLogonType.Password);  // Run whether user is logged on or not (with network access)
     }
 
@@ -250,12 +250,13 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
     public void SyncCrontab(IEnumerable<CrontabEntry> entries)
     {
         var errors = new List<string>();
+        var entriesList = entries.ToList();
 
         // Get existing cron tasks
         var existingTasks = GetCronTasks().ToDictionary(t => t.Name);
 
         // Get task names from crontab entries
-        var newTaskNames = new HashSet<string>(entries.Select(e => e.TaskName));
+        var newTaskNames = new HashSet<string>(entriesList.Select(e => e.TaskName));
 
         // Delete tasks that are no longer in crontab
         foreach (var existingTask in existingTasks.Values)
@@ -273,8 +274,24 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
             }
         }
 
-        // Create or update tasks from crontab
-        foreach (var entry in entries)
+        // Prompt for password once if we have tasks to create
+        string? password = null;
+        if (entriesList.Any())
+        {
+            var username = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+
+            AnsiConsole.MarkupLine($"[yellow]Creating {entriesList.Count} scheduled task(s)...[/]");
+            AnsiConsole.MarkupLine($"[dim]Username: {Markup.Escape(username)}[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Please enter your password to allow tasks to run whether you're logged in or not:[/]");
+
+            password = AnsiConsole.Prompt(
+                new TextPrompt<string>("Password:")
+                    .Secret());
+        }
+
+        // Create or update tasks from crontab using the same password for all
+        foreach (var entry in entriesList)
         {
             try
             {
@@ -284,7 +301,8 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
                     entry.Arguments,
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
-                    entry.EnableLogging);
+                    entry.EnableLogging,
+                    password);
             }
             catch (Exception ex)
             {
