@@ -1,8 +1,6 @@
 # crontab
 
-A .NET 9 command-line tool that brings Unix `crontab` functionality to Windows Task Scheduler.
-
-it doesn't add scheduled tasks right now. Can it also add folders to the task scheduler library?
+A .NET 9 command-line tool that brings Unix `crontab` functionality to Windows Task Scheduler. It runs as your user to ensure no popup Windows are generated.
 
 ## Features
 
