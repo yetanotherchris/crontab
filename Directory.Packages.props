@@ -13,7 +13,6 @@
     <PackageVersion Include="Shouldly" Version="4.2.1" />
 
     <!-- Main Application -->
-    <PackageVersion Include="CredentialManagement" Version="1.0.2" />
     <PackageVersion Include="GitVersion.MsBuild" Version="6.2.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageVersion Include="Spectre.Console" Version="0.50.0" />
