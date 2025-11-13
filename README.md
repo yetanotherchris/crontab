@@ -90,3 +90,5 @@ dotnet publish -c Release
 ```bash
 dotnet run -- crontab [options]
 ```
+
+## Design decisions
