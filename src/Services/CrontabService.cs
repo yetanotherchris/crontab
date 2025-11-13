@@ -226,11 +226,11 @@ public class CrontabService : ICrontabService
             arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
         }
 
-        // Check if command starts with @log or @s4u prefix
+        // Check if command starts with @log or @user prefix
         var enableLogging = false;
-        var useS4U = false;
+        var useS4U = true;  // Default to S4U (no password, internet access, no authenticated network shares)
 
-        // Keep checking for @log and @s4u prefixes
+        // Keep checking for @log and @user prefixes
         var foundPrefix = true;
         while (foundPrefix)
         {
@@ -250,13 +250,13 @@ public class CrontabService : ICrontabService
                     arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
                 }
             }
-            else if (command.StartsWith("@s4u", StringComparison.OrdinalIgnoreCase))
+            else if (command.StartsWith("@user", StringComparison.OrdinalIgnoreCase))
             {
-                useS4U = true;
-                command = command.Substring(4).TrimStart();
+                useS4U = false;  // Use password-based logon for full network access
+                command = command.Substring(5).TrimStart();
                 foundPrefix = true;
 
-                // If command is now empty, it means @s4u was followed by a space and the actual command is in arguments
+                // If command is now empty, it means @user was followed by a space and the actual command is in arguments
                 if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
                 {
                     var argParts = arguments.Split(new[] { ' ' }, 2);
@@ -338,5 +338,5 @@ public class CrontabEntry
     public string Arguments { get; set; } = string.Empty;
     public string OriginalLine { get; set; } = string.Empty;
     public bool EnableLogging { get; set; } = false;
-    public bool UseS4U { get; set; } = false;
+    public bool UseS4U { get; set; } = true;  // Default to S4U (no password needed)
 }

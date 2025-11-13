@@ -157,12 +157,16 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         TaskLogonType logonType;
         if (useS4U)
         {
-            // S4U (Service For User): Runs whether user is logged on or not, but no network access
+            // S4U (Service For User): Runs whether user is logged on or not
+            // Has internet access but cannot access authenticated network resources (mapped drives, UNC paths)
+            // No password needed
             logonType = TaskLogonType.S4U;
         }
         else
         {
-            // Password: Runs whether user is logged on or not, with network access
+            // Password: Runs whether user is logged on or not
+            // Full network access including authenticated network resources (mapped drives, UNC paths, domain shares)
+            // Requires password stored in Windows Credential Manager
             logonType = TaskLogonType.Password;
         }
 
