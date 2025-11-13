@@ -244,6 +244,7 @@ public class CrontabCommand
                 AnsiConsole.MarkupLine($"[dim]Username: {Markup.Escape(username)}[/]");
                 AnsiConsole.WriteLine();
                 AnsiConsole.MarkupLine("[yellow]Please enter your password to allow tasks to run whether you're logged in or not:[/]");
+                AnsiConsole.MarkupLine("[dim](This is usually your Microsoft account password, unless you're on a domain or using a local user)[/]");
 
                 password = AnsiConsole.Prompt(
                     new TextPrompt<string>("Password:")
