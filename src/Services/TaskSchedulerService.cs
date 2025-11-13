@@ -9,7 +9,7 @@ public interface ITaskSchedulerService
     IEnumerable<TaskInfo> ListTasks();
     IEnumerable<TaskInfo> GetCronTasks();
     TaskInfo? GetTask(string name);
-    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null);
+    void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null, bool useS4U = false);
     void DeleteTask(string name);
     void SyncCrontab(IEnumerable<CrontabEntry> entries, string? password = null);
     void RemoveAllCronTasks();
@@ -106,7 +106,7 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         };
     }
 
-    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null)
+    public void CreateTask(string name, string command, string arguments, string schedule, string? description = null, bool enableLogging = false, string? password = null, bool useS4U = false)
     {
         var taskDefinition = _taskService.NewTask();
         taskDefinition.RegistrationInfo.Description = description ?? $"Task created by taskscheduler-cron: {name}";
@@ -153,16 +153,27 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Get fully qualified username (e.g., "COMPUTERNAME\username" or "DOMAIN\username")
         var fullyQualifiedUsername = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
 
-        // Register the task to run whether user is logged on or not
-        // This prevents windows from appearing and runs non-interactively
-        // Using Password logon type ensures network access is available
+        // Choose logon type based on useS4U flag
+        TaskLogonType logonType;
+        if (useS4U)
+        {
+            // S4U (Service For User): Runs whether user is logged on or not, but no network access
+            logonType = TaskLogonType.S4U;
+        }
+        else
+        {
+            // Password: Runs whether user is logged on or not, with network access
+            logonType = TaskLogonType.Password;
+        }
+
+        // Register the task
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.Create,
             fullyQualifiedUsername,  // Fully qualified username (COMPUTERNAME\user or DOMAIN\user)
-            password,  // Use provided password or null to prompt
-            TaskLogonType.Password);  // Run whether user is logged on or not (with network access)
+            password,  // Use provided password (required for Password logon type, not needed for S4U)
+            logonType);
     }
 
     private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)
@@ -286,7 +297,8 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
                     entry.Schedule,
                     $"Cron: {entry.Schedule} {entry.Command} {entry.Arguments}".Trim(),
                     entry.EnableLogging,
-                    password);
+                    password,
+                    entry.UseS4U);
             }
             catch (Exception ex)
             {
