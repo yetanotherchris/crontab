@@ -226,10 +226,11 @@ public class CrontabService : ICrontabService
             arguments = parts.Length > 6 ? string.Join(" ", parts.Skip(6)) : string.Empty;
         }
 
-        // Check if command starts with @log prefix
+        // Check if command starts with @log or @s4u prefix
         var enableLogging = false;
+        var useS4U = false;
 
-        // Keep checking for @log prefix
+        // Keep checking for @log and @s4u prefixes
         var foundPrefix = true;
         while (foundPrefix)
         {
@@ -249,6 +250,20 @@ public class CrontabService : ICrontabService
                     arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
                 }
             }
+            else if (command.StartsWith("@s4u", StringComparison.OrdinalIgnoreCase))
+            {
+                useS4U = true;
+                command = command.Substring(4).TrimStart();
+                foundPrefix = true;
+
+                // If command is now empty, it means @s4u was followed by a space and the actual command is in arguments
+                if (string.IsNullOrWhiteSpace(command) && !string.IsNullOrWhiteSpace(arguments))
+                {
+                    var argParts = arguments.Split(new[] { ' ' }, 2);
+                    command = argParts[0];
+                    arguments = argParts.Length > 1 ? argParts[1] : string.Empty;
+                }
+            }
         }
 
         // Generate a unique task name based on the entry
@@ -261,7 +276,8 @@ public class CrontabService : ICrontabService
             Command = command,
             Arguments = arguments,
             OriginalLine = line,
-            EnableLogging = enableLogging
+            EnableLogging = enableLogging,
+            UseS4U = useS4U
         };
     }
 
@@ -322,4 +338,5 @@ public class CrontabEntry
     public string Arguments { get; set; } = string.Empty;
     public string OriginalLine { get; set; } = string.Empty;
     public bool EnableLogging { get; set; } = false;
+    public bool UseS4U { get; set; } = false;
 }

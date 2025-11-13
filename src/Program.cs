@@ -54,6 +54,7 @@ class Program
         // Register services
         services.AddSingleton<ITaskSchedulerService, TaskSchedulerService>();
         services.AddSingleton<ICrontabService, CrontabService>();
+        services.AddSingleton<ICredentialService, CredentialService>();
 
         // Register command handlers
         services.AddSingleton<CrontabCommand>();
