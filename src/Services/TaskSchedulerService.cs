@@ -138,15 +138,19 @@ public class TaskSchedulerService : ITaskSchedulerService, IDisposable
         // Get the Crontab folder
         var folder = _taskService.GetFolder(CrontabFolderPath);
 
+        // Get fully qualified username (e.g., "COMPUTERNAME\username" or "DOMAIN\username")
+        var fullyQualifiedUsername = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+
         // Register the task to run whether user is logged on or not
         // This prevents windows from appearing and runs non-interactively
+        // Using Password logon type ensures network access is available
         folder.RegisterTaskDefinition(
             name,
             taskDefinition,
             TaskCreation.CreateOrUpdate,
-            null,  // Use current user
-            null,  // No password (will use stored credentials)
-            TaskLogonType.S4U);  // Run whether user is logged on or not (no password required)
+            fullyQualifiedUsername,  // Fully qualified username (COMPUTERNAME\user or DOMAIN\user)
+            null,  // Will prompt for password
+            TaskLogonType.Password);  // Run whether user is logged on or not (with network access)
     }
 
     private (string command, string arguments) WrapCommandWithLogging(string originalCommand, string originalArguments, string logFile)

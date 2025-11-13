@@ -119,9 +119,10 @@ public class CrontabCommand
         AnsiConsole.MarkupLine("  Windows are automatically hidden to prevent flashing");
         AnsiConsole.MarkupLine("");
         AnsiConsole.MarkupLine("[bold]Credentials:[/]");
-        AnsiConsole.MarkupLine("  When creating tasks, Windows will prompt for your credentials:");
-        AnsiConsole.MarkupLine("  - Username: Run [cyan]whoami[/] to see your username");
+        AnsiConsole.MarkupLine("  When creating tasks, Windows will prompt for your password:");
+        AnsiConsole.MarkupLine("  - Username: Automatically detected (run [cyan]whoami[/] to see it)");
         AnsiConsole.MarkupLine("  - Password: Your Microsoft account password (or local account password)");
+        AnsiConsole.MarkupLine("  This allows tasks to run whether you're logged in or not, with network access");
         AnsiConsole.MarkupLine("");
 
         AnsiConsole.MarkupLine("[bold]Examples:[/]");
