@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.CommandLine.Builder;
 using System.CommandLine.Parsing;
 using System.Diagnostics;
+using System.Security.Principal;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -16,6 +17,19 @@ class Program
     {
         // Enable UTF-8 encoding for emoji support
         Console.OutputEncoding = Encoding.UTF8;
+
+        // Check if running as administrator (required for S4U authentication which is now default)
+        if (!IsRunningAsAdministrator())
+        {
+            // Only show warning if not running with internal --command flag (scheduled task execution)
+            if (!args.Contains("--command") && !args.Contains("-c"))
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning: Not running as administrator[/]");
+                AnsiConsole.MarkupLine("[yellow]S4U authentication (default) requires administrator privileges.[/]");
+                AnsiConsole.MarkupLine("[dim]Please run this application as administrator, or use 'sudo crontab' if available.[/]");
+                AnsiConsole.WriteLine();
+            }
+        }
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -61,5 +75,20 @@ class Program
         services.AddSingleton<ExecuteCommand>();
 
         return services.BuildServiceProvider();
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            // If we can't determine, assume not admin
+            return false;
+        }
     }
 }
