@@ -81,7 +81,7 @@ public class ExecuteCommand
                 try
                 {
                     var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                    File.AppendAllText(logFile, $"[{timestamp}] Fatal error: {ex.Message}\n");
+                    PrependToFile(logFile, $"[{timestamp}] Fatal error: {ex.Message}\n");
                 }
                 catch
                 {
@@ -132,12 +132,13 @@ public class ExecuteCommand
 
     private int ExecuteWithLogging(string command, string? arguments, string logFile)
     {
+        var logBuilder = new System.Text.StringBuilder();
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         var displayCommand = string.IsNullOrWhiteSpace(arguments)
             ? command
             : $"{command} {arguments}";
 
-        File.AppendAllText(logFile, $"[{timestamp}] Starting: {displayCommand}\n");
+        logBuilder.AppendLine($"[{timestamp}] Starting: {displayCommand}");
 
         try
         {
@@ -148,7 +149,8 @@ public class ExecuteCommand
             using var process = Process.Start(psi);
             if (process == null)
             {
-                File.AppendAllText(logFile, $"[{timestamp}] Error: Failed to start process\n");
+                logBuilder.AppendLine($"[{timestamp}] Error: Failed to start process");
+                PrependToFile(logFile, logBuilder.ToString());
                 return 1;
             }
 
@@ -161,31 +163,35 @@ public class ExecuteCommand
             // Log output
             if (!string.IsNullOrWhiteSpace(output))
             {
-                File.AppendAllText(logFile, output);
+                logBuilder.Append(output);
                 if (!output.EndsWith("\n"))
                 {
-                    File.AppendAllText(logFile, "\n");
+                    logBuilder.AppendLine();
                 }
             }
 
             if (!string.IsNullOrWhiteSpace(errorOutput))
             {
-                File.AppendAllText(logFile, errorOutput);
+                logBuilder.Append(errorOutput);
                 if (!errorOutput.EndsWith("\n"))
                 {
-                    File.AppendAllText(logFile, "\n");
+                    logBuilder.AppendLine();
                 }
             }
 
             timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            File.AppendAllText(logFile, $"[{timestamp}] Completed with exit code: {process.ExitCode}\n");
+            logBuilder.AppendLine($"[{timestamp}] Completed with exit code: {process.ExitCode}");
+
+            // Prepend all logs at once
+            PrependToFile(logFile, logBuilder.ToString());
 
             return process.ExitCode;
         }
         catch (Exception ex)
         {
             timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            File.AppendAllText(logFile, $"[{timestamp}] Error: {ex.Message}\n");
+            logBuilder.AppendLine($"[{timestamp}] Error: {ex.Message}");
+            PrependToFile(logFile, logBuilder.ToString());
             return 1;
         }
     }
@@ -202,6 +208,18 @@ public class ExecuteCommand
 
         process.WaitForExit();
         return process.ExitCode;
+    }
+
+    private void PrependToFile(string filePath, string content)
+    {
+        string existingContent = string.Empty;
+
+        if (File.Exists(filePath))
+        {
+            existingContent = File.ReadAllText(filePath);
+        }
+
+        File.WriteAllText(filePath, content + existingContent);
     }
 
     private ProcessStartInfo CreateProcessStartInfo(string command, string? arguments)
